@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>supergrader</title>
+  <style>
+    body {
+      width: 320px;
+      padding: 16px;
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #e9ecef;
+    }
+
+    .logo {
+      font-size: 24px;
+    }
+
+    .title {
+      font-weight: 600;
+      color: #333;
+    }
+
+    .status {
+      padding: 12px;
+      border-radius: 6px;
+      margin-bottom: 16px;
+      font-size: 13px;
+    }
+
+    .status.ready {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .status.not-ready {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+
+    .settings {
+      margin-bottom: 16px;
+    }
+
+    .setting-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .setting-label {
+      color: #666;
+      font-size: 13px;
+    }
+
+    .toggle-switch {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      background: #ccc;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    .toggle-switch.active {
+      background: #4a90e2;
+    }
+
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: white;
+      top: 2px;
+      left: 2px;
+      transition: transform 0.3s;
+    }
+
+    .toggle-switch.active::after {
+      transform: translateX(20px);
+    }
+
+    .threshold-input {
+      width: 60px;
+      padding: 4px 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: #4a90e2;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #357abd;
+    }
+
+    .btn-secondary {
+      background: #6c757d;
+      color: white;
+    }
+
+    .btn-secondary:hover {
+      background: #5a6268;
+    }
+
+    .version {
+      text-align: center;
+      color: #999;
+      font-size: 12px;
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid #e9ecef;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">🤖</div>
+    <div class="title">supergrader</div>
+  </div>
+
+  <div id="status" class="status not-ready">
+    Not on a Gradescope grading page
+  </div>
+
+  <div class="settings">
+    <div class="setting-item">
+      <span class="setting-label">Auto-apply high confidence</span>
+      <div id="autoApplyToggle" class="toggle-switch"></div>
+    </div>
+    
+    <div class="setting-item">
+      <span class="setting-label">Confidence threshold</span>
+      <input type="number" id="thresholdInput" class="threshold-input" 
+             min="0" max="1" step="0.1" value="0.8">
+    </div>
+    
+    <div class="setting-item">
+      <span class="setting-label">Extension enabled</span>
+      <div id="enabledToggle" class="toggle-switch active"></div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button id="settingsBtn" class="btn btn-secondary">Settings</button>
+    <button id="helpBtn" class="btn btn-primary">Help</button>
+  </div>
+
+  <div class="version">
+    Version 1.0.0
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html> 

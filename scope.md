@@ -1,4 +1,4 @@
-# AI Gradescope Grading Extension - Project Scope
+# supergrader - Project Scope
 
 _Last updated: 2025-01-27_
 
@@ -6,8 +6,8 @@ _Last updated: 2025-01-27_
 
 ```
 ┌─────────────────┐    ┌──────────────┐    ┌─────────────────┐
-│ Chrome Extension│────│ Your Backend │────│ GPT-4o API      │
-│ (Content Script)│    │ API Server   │    │                 │
+│  supergrader    │────│ Your Backend │────│ GPT-4o API      │
+│ Chrome Extension│    │ API Server   │    │                 │
 └─────────────────┘    └──────────────┘    └─────────────────┘
          │                       │
          │                       │
@@ -24,7 +24,7 @@ _Last updated: 2025-01-27_
 ```json
 {
   "manifest_version": 3,
-  "name": "AI Gradescope Assistant",
+  "name": "supergrader",
   "version": "1.0",
   "permissions": ["storage", "cookies", "scripting", "activeTab"],
   "host_permissions": ["https://www.gradescope.com/*"],
@@ -317,11 +317,11 @@ def evaluate_ai_performance(assignment_id, ai_decisions, human_decisions):
 - ✅ Basic UI injection into Gradescope interface
 
 **Specific Tasks:**
-1. **Day 1-2: Project Setup**
-   - Initialize Chrome extension project structure
-   - Create manifest.json with required permissions
-   - Set up development environment and hot-reload
-   - Test extension loads on Gradescope pages
+1. **Day 1-2: Project Setup** ✅ **COMPLETED**
+   - ✅ Initialize Chrome extension project structure
+   - ✅ Create manifest.json with required permissions
+   - ✅ Set up development environment and hot-reload
+   - ✅ Test extension loads on Gradescope pages
 
 2. **Day 3-4: Content Script Foundation**
    - Implement URL pattern matching for grading pages
