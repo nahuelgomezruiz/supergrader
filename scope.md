@@ -353,7 +353,6 @@ def evaluate_ai_performance(assignment_id, ai_decisions, human_decisions):
    - ✅ Handle encoding issues and binary files
 
 2. **Day 3-4: Rubric Parsing**
-   - Parse rubric items from DOM using selectors
    - Extract rubric item IDs, descriptions, and point values
    - Map rubric items to question categories
    - Handle different rubric types (checkboxes, radio buttons)

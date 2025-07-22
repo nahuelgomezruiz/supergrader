@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "supergrader",
-  "version": "1.0.1",
+  "version": "1.0",
   "description": "AI-powered grading assistant for Gradescope assignments",
   "permissions": ["storage", "cookies", "scripting", "activeTab"],
   "host_permissions": ["https://www.gradescope.com/*"],
@@ -10,15 +10,23 @@
       "https://www.gradescope.com/courses/*/assignments/*/submissions/*/grade",
       "https://www.gradescope.com/courses/*/questions/*/submissions/*/grade"
     ],
-    "js": ["content.js", "gradescope-api.js", "ui-controller.js", "jszip.min.js"],
-    "css": ["styles.css"],
+    "js": ["chrome-extension/jszip.min.js", "chrome-extension/content.js", "chrome-extension/gradescope-api.js", "chrome-extension/ui-controller.js"],
+    "css": ["chrome-extension/styles.css"],
     "run_at": "document_idle"
   }],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "chrome-extension/background.js"
   },
   "action": {
     "default_popup": "popup.html",
     "default_title": "supergrader"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "gradescope/*.js"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ]
 } 
