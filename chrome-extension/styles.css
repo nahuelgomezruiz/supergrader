@@ -10,6 +10,7 @@
   font-size: 14px;
   z-index: 1000;
   position: relative;
+  max-width: 100%;
 }
 
 .ai-panel-header {
@@ -21,6 +22,16 @@
   justify-content: space-between;
   align-items: center;
   border-radius: 6px 6px 0 0;
+  min-height: 20px;
+}
+
+.ai-panel-info {
+  font-size: 11px;
+  opacity: 0.9;
+  font-weight: normal;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 2px 8px;
+  border-radius: 4px;
 }
 
 .ai-panel-toggle {
@@ -37,6 +48,7 @@
   justify-content: center;
   border-radius: 4px;
   transition: background-color 0.2s;
+  flex-shrink: 0;
 }
 
 .ai-panel-toggle:hover {
@@ -47,23 +59,70 @@
   padding: 16px;
 }
 
+.ai-status-container {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e9ecef;
+}
+
 .ai-status {
   color: #666;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   font-style: italic;
+}
+
+.ai-connection-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #888;
+}
+
+.ai-connection-status .status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #ffc107;
+  animation: pulse 2s infinite;
+}
+
+.ai-connection-status.connected .status-indicator {
+  background-color: #28a745;
+  animation: none;
+}
+
+.ai-connection-status.error .status-indicator {
+  background-color: #dc3545;
+  animation: none;
+}
+
+.ai-connection-status.warning .status-indicator {
+  background-color: #ffc107;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.ai-controls {
+  margin-bottom: 12px;
 }
 
 .ai-grade-button {
   background: linear-gradient(135deg, #28a745, #20a03a);
   color: white;
   border: none;
-  padding: 10px 20px;
+  padding: 12px 24px;
   border-radius: 6px;
   cursor: pointer;
   font-weight: 600;
   transition: all 0.2s;
   width: 100%;
   font-size: 14px;
+  margin-bottom: 12px;
 }
 
 .ai-grade-button:hover:not(:disabled) {
@@ -79,8 +138,33 @@
   box-shadow: none;
 }
 
+.ai-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ai-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #666;
+  cursor: pointer;
+  user-select: none;
+}
+
+.ai-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #4a90e2;
+}
+
 .ai-progress {
   margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #e9ecef;
 }
 
 .progress-bar {
@@ -97,18 +181,83 @@
   background: linear-gradient(90deg, #4a90e2, #357abd);
   width: 0%;
   transition: width 0.3s ease;
-  animation: progressPulse 2s infinite;
+  border-radius: 4px;
 }
 
 .progress-text {
   color: #666;
   font-size: 12px;
   text-align: center;
+  font-weight: 500;
 }
 
-@keyframes progressPulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
+/* Error handling styles */
+.ai-errors {
+  margin-top: 12px;
+  padding: 12px;
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+  border-radius: 4px;
+  color: #721c24;
+}
+
+.error-message {
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.success-message {
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #155724;
+  background: #d4edda;
+  padding: 8px 12px;
+  border-radius: 4px;
+  border: 1px solid #c3e6cb;
+}
+
+.info-message {
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #0c5460;
+  background: #d1ecf1;
+  padding: 8px 12px;
+  border-radius: 4px;
+  border: 1px solid #bee5eb;
+}
+
+.ai-error-panel {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: #dc3545;
+  color: white;
+  padding: 16px;
+  border-radius: 6px;
+  z-index: 10000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  max-width: 300px;
+}
+
+.error-content {
+  text-align: center;
+}
+
+.error-content button {
+  margin-top: 12px;
+  background: white;
+  color: #dc3545;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
 }
 
 /* Uncertainty warning styles */
@@ -149,6 +298,40 @@
   background: #fffbf0;
 }
 
+/* Enhanced visual states */
+.ai-grading-panel.processing {
+  border-color: #ffc107;
+}
+
+.ai-grading-panel.processing .ai-panel-header {
+  background: linear-gradient(135deg, #ffc107, #e0a800);
+}
+
+.ai-grading-panel.complete {
+  border-color: #28a745;
+}
+
+.ai-grading-panel.complete .ai-panel-header {
+  background: linear-gradient(135deg, #28a745, #20a03a);
+}
+
+.ai-grading-panel.error {
+  border-color: #dc3545;
+}
+
+.ai-grading-panel.error .ai-panel-header {
+  background: linear-gradient(135deg, #dc3545, #c82333);
+}
+
+/* Animation for panel state changes */
+.ai-grading-panel {
+  transition: border-color 0.3s ease;
+}
+
+.ai-panel-header {
+  transition: background 0.3s ease;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .ai-grading-panel {
@@ -157,5 +340,124 @@
   
   .ai-panel-content {
     padding: 12px;
+  }
+  
+  .ai-panel-header {
+    flex-direction: column;
+    gap: 8px;
+    text-align: center;
+  }
+  
+  .ai-panel-info {
+    order: -1;
+  }
+  
+  .ai-grade-button {
+    padding: 10px 20px;
+    font-size: 13px;
+  }
+}
+
+/* Authentication debug styles */
+.auth-debug-info {
+  margin-top: 12px;
+  padding: 12px;
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #495057;
+}
+
+.debug-header {
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #6c757d;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.debug-details {
+  margin-bottom: 12px;
+}
+
+.debug-details > div {
+  margin: 4px 0;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 11px;
+}
+
+.auth-retry-btn {
+  background: #17a2b8;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  transition: background 0.2s;
+  width: 100%;
+}
+
+.auth-retry-btn:hover {
+  background: #138496;
+}
+
+.auth-retry-btn:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+}
+
+/* Enhanced connection status styles */
+.ai-connection-status.warning {
+  color: #856404;
+}
+
+.ai-connection-status.warning .status-text {
+  font-weight: 500;
+}
+
+.ai-connection-status.error {
+  color: #721c24;
+}
+
+.ai-connection-status.error .status-text {
+  font-weight: 600;
+}
+
+/* Dark mode support (if Gradescope ever adds it) */
+@media (prefers-color-scheme: dark) {
+  .ai-grading-panel {
+    background: #2d3748;
+    border-color: #4a90e2;
+    color: #e2e8f0;
+  }
+  
+  .ai-status {
+    color: #a0aec0;
+  }
+  
+  .ai-connection-status {
+    color: #a0aec0;
+  }
+  
+  .ai-checkbox {
+    color: #a0aec0;
+  }
+  
+  .progress-text {
+    color: #a0aec0;
+  }
+
+  .auth-debug-info {
+    background: #4a5568;
+    border-color: #718096;
+    color: #e2e8f0;
+  }
+
+  .debug-header {
+    color: #cbd5e0;
   }
 } 
