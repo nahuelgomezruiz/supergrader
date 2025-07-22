@@ -103,9 +103,10 @@ class UIController {
         </div>
         <div class="ai-controls">
           <button class="ai-grade-button" id="ai-grade-button">Start AI Grading</button>
-          <div class="test-buttons" style="margin-left: 10px; display: flex; gap: 8px;">
+          <div class="test-buttons" style="margin-left: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
             <button class="ai-test-button" id="ai-test-button" style="background: #17a2b8;">🔧 Test File Download</button>
             <button class="ai-rubric-button" id="ai-rubric-button" style="background: #28a745;">📝 Test Rubric</button>
+            <button class="ai-comprehensive-test-button" id="ai-comprehensive-test-button" style="background: #6f42c1; margin-top: 5px;">🚀 Comprehensive Rubric Test</button>
           </div>
           <div class="ai-options">
             <label class="ai-checkbox">
@@ -218,6 +219,20 @@ class UIController {
                     catch (error) {
                         console.error('UIController: Error testing rubric', error);
                         this.showError('Failed to test rubric parsing');
+                    }
+                });
+            }
+            // Comprehensive rubric test button
+            const comprehensiveTestButton = this.aiPanel.querySelector('#ai-comprehensive-test-button');
+            if (comprehensiveTestButton) {
+                comprehensiveTestButton.addEventListener('click', () => {
+                    try {
+                        console.log('🚀 UIController: Comprehensive rubric test button clicked');
+                        this.testRubricComprehensive();
+                    }
+                    catch (error) {
+                        console.error('UIController: Error running comprehensive rubric test', error);
+                        this.showError('Failed to run comprehensive rubric test');
                     }
                 });
             }
@@ -694,6 +709,379 @@ class UIController {
                 this.showError('Rubric test timeout - check console for details');
             }
         }, 15000);
+    }
+    /**
+     * Comprehensive rubric test - tests all rubric parsing systems
+     */
+    async testRubricComprehensive() {
+        console.log('🚀 UIController: Starting comprehensive rubric test...');
+        // Show progress
+        this.showProgress('Running comprehensive rubric tests...', 0);
+        // Update button state
+        const testButton = this.aiPanel?.querySelector('#ai-comprehensive-test-button');
+        if (testButton) {
+            testButton.disabled = true;
+            testButton.textContent = '🔄 Testing All Systems...';
+        }
+        const results = [];
+        try {
+            // Test 1: GradescopeAPI extractRubricStructure (newly implemented)
+            this.updateProgress(1, 7, 'Testing GradescopeAPI.extractRubricStructure...');
+            await this.delay(500);
+            try {
+                const startTime = performance.now();
+                const api = window.GradescopeAPI; // Use existing instance, not constructor
+                if (!api || typeof api.extractRubricStructure !== 'function') {
+                    throw new Error('GradescopeAPI instance not available or missing extractRubricStructure method');
+                }
+                const apiResults = api.extractRubricStructure();
+                const timing = Math.round(performance.now() - startTime);
+                if (Array.isArray(apiResults) && apiResults.length > 0) {
+                    results.push({
+                        test: 'GradescopeAPI.extractRubricStructure',
+                        status: 'success',
+                        message: `✅ Found ${apiResults.length} rubric items`,
+                        timing
+                    });
+                }
+                else if (Array.isArray(apiResults) && apiResults.length === 0) {
+                    results.push({
+                        test: 'GradescopeAPI.extractRubricStructure',
+                        status: 'info',
+                        message: 'ℹ️ No rubric items found (manual scoring or no rubric)',
+                        timing
+                    });
+                }
+                else {
+                    results.push({
+                        test: 'GradescopeAPI.extractRubricStructure',
+                        status: 'error',
+                        message: '❌ Invalid response format',
+                        timing
+                    });
+                }
+            }
+            catch (error) {
+                console.log('Debug: window.GradescopeAPI:', window.GradescopeAPI);
+                console.log('Debug: typeof window.GradescopeAPI:', typeof window.GradescopeAPI);
+                if (window.GradescopeAPI) {
+                    console.log('Debug: GradescopeAPI methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(window.GradescopeAPI)));
+                }
+                results.push({
+                    test: 'GradescopeAPI.extractRubricStructure',
+                    status: 'error',
+                    message: `❌ Error: ${error.message}`
+                });
+            }
+            // Test 2: Unified rubric system (getRubric)
+            this.updateProgress(2, 7, 'Testing unified rubric system...');
+            await this.delay(500);
+            try {
+                const startTime = performance.now();
+                const getRubric = window.getRubric;
+                if (typeof getRubric === 'function') {
+                    const unifiedResult = getRubric();
+                    const timing = Math.round(performance.now() - startTime);
+                    if (unifiedResult?.type === 'structured') {
+                        results.push({
+                            test: 'Unified getRubric (Structured)',
+                            status: 'success',
+                            message: `✅ Found ${unifiedResult.items.length} items (${unifiedResult.rubricStyle})`,
+                            timing
+                        });
+                    }
+                    else if (unifiedResult?.type === 'manual') {
+                        results.push({
+                            test: 'Unified getRubric (Manual)',
+                            status: 'info',
+                            message: 'ℹ️ Manual scoring interface detected',
+                            timing
+                        });
+                    }
+                    else {
+                        results.push({
+                            test: 'Unified getRubric',
+                            status: 'info',
+                            message: 'ℹ️ No rubric structure found',
+                            timing
+                        });
+                    }
+                }
+                else {
+                    results.push({
+                        test: 'Unified getRubric',
+                        status: 'error',
+                        message: '❌ getRubric function not available'
+                    });
+                }
+            }
+            catch (error) {
+                results.push({
+                    test: 'Unified getRubric',
+                    status: 'error',
+                    message: `❌ Error: ${error.message}`
+                });
+            }
+            // Test 3: API-based system (fetchRubricMap) - only for assignments
+            this.updateProgress(3, 7, 'Testing API-based rubric system...');
+            await this.delay(500);
+            if (this.state?.assignmentType === 'assignments' && this.state?.courseId && this.state?.assignmentId) {
+                try {
+                    const startTime = performance.now();
+                    const supergrader = window.supergrader;
+                    if (supergrader?.testRubric) {
+                        const rubricMap = await supergrader.testRubric();
+                        const timing = Math.round(performance.now() - startTime);
+                        if (rubricMap?.questions) {
+                            const questionCount = Object.keys(rubricMap.questions).length;
+                            const itemCount = Object.keys(rubricMap.itemToQuestion).length;
+                            results.push({
+                                test: 'API fetchRubricMap',
+                                status: 'success',
+                                message: `✅ Found ${questionCount} questions, ${itemCount} items`,
+                                timing
+                            });
+                        }
+                        else {
+                            results.push({
+                                test: 'API fetchRubricMap',
+                                status: 'error',
+                                message: '❌ Invalid rubric map response',
+                                timing
+                            });
+                        }
+                    }
+                    else {
+                        results.push({
+                            test: 'API fetchRubricMap',
+                            status: 'error',
+                            message: '❌ supergrader.testRubric not available'
+                        });
+                    }
+                }
+                catch (error) {
+                    results.push({
+                        test: 'API fetchRubricMap',
+                        status: 'error',
+                        message: `❌ Error: ${error.message}`
+                    });
+                }
+            }
+            else {
+                results.push({
+                    test: 'API fetchRubricMap',
+                    status: 'info',
+                    message: 'ℹ️ Skipped (question page or missing IDs)'
+                });
+            }
+            // Test 4: Console API availability
+            this.updateProgress(4, 7, 'Testing console API availability...');
+            await this.delay(300);
+            const consoleFunctions = ['testRubric', 'testUnifiedRubric', 'testIframeRubric', 'analyzeRubric', 'getRubricItem'];
+            const supergrader = window.supergrader;
+            console.log('Debug: supergrader object:', supergrader);
+            console.log('Debug: available properties:', supergrader ? Object.keys(supergrader) : 'none');
+            const availableFunctions = consoleFunctions.filter(fn => typeof supergrader?.[fn] === 'function');
+            results.push({
+                test: 'Console API Functions',
+                status: availableFunctions.length === 5 ? 'success' : availableFunctions.length > 0 ? 'info' : 'error',
+                message: `${availableFunctions.length === 5 ? '✅' : availableFunctions.length > 0 ? 'ℹ️' : '❌'} ${availableFunctions.length}/${consoleFunctions.length} functions available${availableFunctions.length > 0 ? ` (${availableFunctions.join(', ')})` : ''}`
+            });
+            // Test 5: Toggle functionality test (if structured rubric exists)
+            this.updateProgress(5, 7, 'Testing toggle functionality...');
+            await this.delay(500);
+            try {
+                const getRubric = window.getRubric;
+                const applyGrade = window.applyGrade;
+                if (typeof getRubric === 'function' && typeof applyGrade === 'function') {
+                    const rubricResult = getRubric();
+                    if (rubricResult?.type === 'structured' && rubricResult.items.length > 0) {
+                        const startTime = performance.now();
+                        const firstItem = rubricResult.items[0];
+                        // Test toggle (just get current state, don't actually change it)
+                        const api = window.GradescopeAPI;
+                        const isSelectedMethod = (api?.isRubricItemSelected) || ((element) => {
+                            if (!element)
+                                return false;
+                            const input = element.querySelector('input[type="checkbox"], input[type="radio"]');
+                            return input ? input.checked : false;
+                        });
+                        const currentlySelected = isSelectedMethod(firstItem.element) || false;
+                        const timing = Math.round(performance.now() - startTime);
+                        results.push({
+                            test: 'Toggle Functionality Check',
+                            status: 'success',
+                            message: `✅ Ready to toggle (item ${firstItem.id} currently ${currentlySelected ? 'selected' : 'unselected'})`,
+                            timing
+                        });
+                    }
+                    else if (rubricResult?.type === 'manual') {
+                        results.push({
+                            test: 'Toggle Functionality Check',
+                            status: 'info',
+                            message: 'ℹ️ Manual scoring - no items to toggle'
+                        });
+                    }
+                    else {
+                        results.push({
+                            test: 'Toggle Functionality Check',
+                            status: 'info',
+                            message: 'ℹ️ No structured rubric items found'
+                        });
+                    }
+                }
+                else {
+                    results.push({
+                        test: 'Toggle Functionality Check',
+                        status: 'error',
+                        message: '❌ Toggle functions not available'
+                    });
+                }
+            }
+            catch (error) {
+                results.push({
+                    test: 'Toggle Functionality Check',
+                    status: 'error',
+                    message: `❌ Error: ${error.message}`
+                });
+            }
+            // Test 6: Performance benchmark
+            this.updateProgress(6, 7, 'Running performance benchmark...');
+            await this.delay(500);
+            try {
+                const benchmarkResults = [];
+                const getRubric = window.getRubric;
+                if (typeof getRubric === 'function') {
+                    // Run 5 iterations to get average performance
+                    for (let i = 0; i < 5; i++) {
+                        const start = performance.now();
+                        getRubric();
+                        benchmarkResults.push(performance.now() - start);
+                    }
+                    const avgTime = benchmarkResults.reduce((a, b) => a + b, 0) / benchmarkResults.length;
+                    const maxTime = Math.max(...benchmarkResults);
+                    results.push({
+                        test: 'Performance Benchmark',
+                        status: avgTime < 50 ? 'success' : avgTime < 200 ? 'info' : 'error',
+                        message: `${avgTime < 50 ? '✅' : avgTime < 200 ? 'ℹ️' : '❌'} Avg: ${avgTime.toFixed(2)}ms, Max: ${maxTime.toFixed(2)}ms`,
+                        timing: Math.round(avgTime)
+                    });
+                }
+                else {
+                    results.push({
+                        test: 'Performance Benchmark',
+                        status: 'error',
+                        message: '❌ Cannot benchmark - getRubric not available'
+                    });
+                }
+            }
+            catch (error) {
+                results.push({
+                    test: 'Performance Benchmark',
+                    status: 'error',
+                    message: `❌ Error: ${error.message}`
+                });
+            }
+            // Test 7: Documentation and usage examples
+            this.updateProgress(7, 7, 'Generating usage examples...');
+            await this.delay(300);
+            const hasRubricStructure = results.some(r => (r.test.includes('extractRubricStructure') || r.test.includes('getRubric')) &&
+                r.status === 'success');
+            results.push({
+                test: 'Usage Examples',
+                status: 'info',
+                message: hasRubricStructure ?
+                    'ℹ️ Check console for detailed usage examples' :
+                    'ℹ️ Limited examples available (no structured rubric found)'
+            });
+        }
+        catch (error) {
+            results.push({
+                test: 'Comprehensive Test',
+                status: 'error',
+                message: `❌ Unexpected error: ${error.message}`
+            });
+        }
+        finally {
+            // Reset button state
+            if (testButton) {
+                testButton.disabled = false;
+                testButton.textContent = '🚀 Comprehensive Rubric Test';
+            }
+            this.hideProgress();
+            this.showComprehensiveResults(results);
+            this.logUsageExamples();
+        }
+    }
+    /**
+     * Display comprehensive test results
+     */
+    showComprehensiveResults(results) {
+        console.log('🚀 UIController: Comprehensive Rubric Test Results:');
+        console.log('='.repeat(60));
+        const successCount = results.filter(r => r.status === 'success').length;
+        const errorCount = results.filter(r => r.status === 'error').length;
+        const infoCount = results.filter(r => r.status === 'info').length;
+        results.forEach(result => {
+            const timing = result.timing ? ` (${result.timing}ms)` : '';
+            console.log(`${result.message}${timing} - ${result.test}`);
+        });
+        console.log('='.repeat(60));
+        console.log(`Summary: ${successCount} passed, ${errorCount} failed, ${infoCount} info`);
+        // Show summary in UI
+        let summaryMessage = '';
+        let messageType = 'success';
+        if (errorCount === 0 && successCount > 0) {
+            summaryMessage = `🎉 All tests passed! ${successCount} systems working correctly. Check console for details.`;
+            messageType = 'success';
+        }
+        else if (errorCount > 0 && successCount > 0) {
+            summaryMessage = `⚠️ Partial success: ${successCount} passed, ${errorCount} failed. Check console for details.`;
+            messageType = 'info';
+        }
+        else if (errorCount > 0) {
+            summaryMessage = `❌ Tests failed: ${errorCount} errors found. Check console for details.`;
+            messageType = 'error';
+        }
+        else {
+            summaryMessage = `ℹ️ Tests completed: No structured rubrics found on this page. Check console for details.`;
+            messageType = 'info';
+        }
+        this.showError(summaryMessage, messageType);
+        setTimeout(() => this.hideError(), 8000);
+    }
+    /**
+     * Log usage examples for developers
+     */
+    logUsageExamples() {
+        console.log('\n📚 Rubric System Usage Examples:');
+        console.log('-'.repeat(40));
+        console.log('// Basic rubric detection:');
+        console.log('const rubric = getRubric();');
+        console.log('if (rubric?.type === "structured") {');
+        console.log('  console.log(`Found ${rubric.items.length} items`);');
+        console.log('}\n');
+        console.log('// GradescopeAPI usage:');
+        console.log('const api = new GradescopeAPI();');
+        console.log('const items = api.extractRubricStructure();');
+        console.log('const result = await api.toggleRubricItem("1", "12345", -2, "Error");\n');
+        console.log('// Console helper functions:');
+        console.log('await supergrader.testRubric();        // API-based test');
+        console.log('supergrader.testUnifiedRubric();       // DOM-based test');
+        console.log('await supergrader.analyzeRubric();     // Detailed analysis');
+        console.log('await supergrader.getRubricItem(123);  // Get specific item\n');
+        console.log('// Apply grading (toggle items):');
+        console.log('const success = applyGrade(rubric, "12345", true);  // select');
+        console.log('const success = applyGrade(rubric, "12346", false); // deselect\n');
+        console.log('// Manual scoring:');
+        console.log('const success = applyGrade(rubric, undefined, undefined, 85.5);');
+        console.log('-'.repeat(40));
+    }
+    /**
+     * Simple delay helper for test pacing
+     */
+    delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 }
 // Create global instance

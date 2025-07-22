@@ -131,5 +131,21 @@ declare class UIController {
      * Test rubric parsing functionality (Week 2 Day 3-4: Rubric Parsing)
      */
     private testRubric;
+    /**
+     * Comprehensive rubric test - tests all rubric parsing systems
+     */
+    private testRubricComprehensive;
+    /**
+     * Display comprehensive test results
+     */
+    private showComprehensiveResults;
+    /**
+     * Log usage examples for developers
+     */
+    private logUsageExamples;
+    /**
+     * Simple delay helper for test pacing
+     */
+    private delay;
 }
 //# sourceMappingURL=ui-controller.d.ts.map

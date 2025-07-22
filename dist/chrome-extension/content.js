@@ -302,19 +302,25 @@ function setupGlobalState(state, api, ui) {
     window.supergraderState = state;
     window.supergraderAPI = api;
     window.supergraderUI = ui;
-    // Create console debugging helper in content script context
-    window.supergrader = {
-        api: api,
-        ui: ui,
-        getStatus: () => api?.getAuthStatus?.(),
-        getState: () => state,
-        downloadTest: (submissionId) => {
-            const event = new CustomEvent('SUPERGRADER_TEST_DOWNLOAD', {
-                detail: { submissionId }
-            });
-            window.dispatchEvent(event);
-        }
-    };
+    // Create/extend console debugging helper using IIFE with Object.assign
+    (() => {
+        const contentHelpers = {
+            api: api,
+            ui: ui,
+            getStatus: () => api?.getAuthStatus?.(),
+            getState: () => state,
+            downloadTest: (submissionId) => {
+                const event = new CustomEvent('SUPERGRADER_TEST_DOWNLOAD', {
+                    detail: { submissionId }
+                });
+                window.dispatchEvent(event);
+            }
+        };
+        // Merge with any existing supergrader object
+        window.supergrader = Object.assign(window.supergrader || {}, contentHelpers);
+        const keys = Object.keys(window.supergrader);
+        console.log('supergrader: Content script helpers merged:', keys);
+    })();
     // Also ensure the objects are available at the global level for debugging
     window.supergraderDebug = {
         state,
@@ -322,7 +328,6 @@ function setupGlobalState(state, api, ui) {
         ui,
         version: '1.0.1'
     };
-    console.log('supergrader: Console helper available at window.supergrader');
     // Set up event listeners for state updates
     document.addEventListener('supergrader:stateUpdate', ((event) => {
         Object.assign(state, event.detail);

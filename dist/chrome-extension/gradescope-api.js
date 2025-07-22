@@ -764,214 +764,216 @@ class GradescopeAPI {
 }
 // Create global instance
 window.GradescopeAPI = new GradescopeAPI();
-// Set up supergrader helper as fallback (in case content script version doesn't work)
-setTimeout(() => {
-    if (!window.supergrader && window.GradescopeAPI) {
-        window.supergrader = {
-            api: window.GradescopeAPI,
-            ui: window.UIController,
-            getStatus: () => window.GradescopeAPI?.getAuthStatus?.(),
-            getState: () => window.supergraderState,
-            downloadTest: (submissionId) => {
-                const event = new CustomEvent('SUPERGRADER_TEST_DOWNLOAD', {
-                    detail: { submissionId }
-                });
-                window.dispatchEvent(event);
-            },
-            testRubric: async () => {
-                console.log('supergrader: Testing rubric retrieval...');
-                // Extract IDs from current page URL
-                const urlMatch = window.location.pathname.match(/\/courses\/(\d+)\/(assignments|questions)\/(\d+)\/submissions\/(\d+)\/grade/);
-                if (!urlMatch) {
-                    console.error('supergrader: Not on a valid grading page');
-                    return null;
-                }
-                const [, courseId, , assignmentId] = urlMatch;
-                try {
-                    // Dynamic import to avoid module loading issues
-                    const rubricModule = await import(chrome.runtime.getURL('gradescope/rubric.js'));
-                    const rubricMap = await rubricModule.fetchRubricMap(parseInt(courseId, 10), parseInt(assignmentId, 10));
-                    console.log('supergrader: Rubric retrieval successful!');
-                    console.log('Questions:', rubricMap.questions);
-                    console.log('Item to Question mapping:', rubricMap.itemToQuestion);
-                    // Log detailed structure
-                    const questionCount = Object.keys(rubricMap.questions).length;
-                    const totalItems = Object.keys(rubricMap.itemToQuestion).length;
-                    console.log(`supergrader: Found ${questionCount} questions with ${totalItems} total rubric items`);
-                    // Log each question's details
-                    Object.entries(rubricMap.questions).forEach(([qId, qData]) => {
-                        console.log(`Question ${qId}: "${qData.name}" (${qData.rubricStyle}, parent: ${qData.parentId || 'none'})`);
-                        qData.items.forEach((item) => {
-                            console.log(`  Item ${item.id}: "${item.text}" (${item.points} pts)`);
-                        });
-                    });
-                    return rubricMap;
-                }
-                catch (error) {
-                    console.error('supergrader: Rubric retrieval failed:', error);
-                    return null;
-                }
-            },
-            analyzeRubric: async () => {
-                const rubricMap = await window.supergrader.testRubric();
-                if (!rubricMap)
-                    return null;
-                const analysis = {
-                    totalQuestions: Object.keys(rubricMap.questions).length,
-                    totalItems: Object.keys(rubricMap.itemToQuestion).length,
-                    questionsByType: { CHECKBOX: 0, RADIO: 0 },
-                    parentChildRelationships: 0,
-                    pointsDistribution: { positive: 0, negative: 0, zero: 0 },
-                    questionHierarchy: []
-                };
-                // Analyze question structure
-                Object.entries(rubricMap.questions).forEach(([_, qData]) => {
-                    analysis.questionsByType[qData.rubricStyle]++;
-                    if (qData.parentId !== null) {
-                        analysis.parentChildRelationships++;
-                    }
-                    // Analyze points distribution
+// Set up comprehensive console helpers using IIFE with Object.assign
+(() => {
+    const apiHelpers = {
+        // Ensure core properties are set (may override existing)
+        api: window.GradescopeAPI,
+        ui: window.UIController,
+        getStatus: () => window.GradescopeAPI?.getAuthStatus?.(),
+        getState: () => window.supergraderState,
+        downloadTest: (submissionId) => {
+            const event = new CustomEvent('SUPERGRADER_TEST_DOWNLOAD', {
+                detail: { submissionId }
+            });
+            window.dispatchEvent(event);
+        },
+        testRubric: async () => {
+            console.log('supergrader: Testing rubric retrieval...');
+            // Extract IDs from current page URL
+            const urlMatch = window.location.pathname.match(/\/courses\/(\d+)\/(assignments|questions)\/(\d+)\/submissions\/(\d+)\/grade/);
+            if (!urlMatch) {
+                console.error('supergrader: Not on a valid grading page');
+                return null;
+            }
+            const [, courseId, , assignmentId] = urlMatch;
+            try {
+                // Dynamic import to avoid module loading issues
+                const rubricModule = await import(chrome.runtime.getURL('gradescope/rubric.js'));
+                const rubricMap = await rubricModule.fetchRubricMap(parseInt(courseId, 10), parseInt(assignmentId, 10));
+                console.log('supergrader: Rubric retrieval successful!');
+                console.log('Questions:', rubricMap.questions);
+                console.log('Item to Question mapping:', rubricMap.itemToQuestion);
+                // Log detailed structure
+                const questionCount = Object.keys(rubricMap.questions).length;
+                const totalItems = Object.keys(rubricMap.itemToQuestion).length;
+                console.log(`supergrader: Found ${questionCount} questions with ${totalItems} total rubric items`);
+                // Log each question's details
+                Object.entries(rubricMap.questions).forEach(([qId, qData]) => {
+                    console.log(`Question ${qId}: "${qData.name}" (${qData.rubricStyle}, parent: ${qData.parentId || 'none'})`);
                     qData.items.forEach((item) => {
-                        if (item.points > 0)
-                            analysis.pointsDistribution.positive++;
-                        else if (item.points < 0)
-                            analysis.pointsDistribution.negative++;
-                        else
-                            analysis.pointsDistribution.zero++;
+                        console.log(`  Item ${item.id}: "${item.text}" (${item.points} pts)`);
                     });
                 });
-                // Build question hierarchy
-                const rootQuestions = Object.entries(rubricMap.questions)
-                    .filter(([_, qData]) => qData.parentId === null)
-                    .map(([qId, qData]) => ({
-                    id: parseInt(qId),
-                    name: qData.name,
-                    children: Object.entries(rubricMap.questions)
-                        .filter(([_, childData]) => childData.parentId === parseInt(qId))
-                        .map(([childId, childData]) => ({
-                        id: parseInt(childId),
-                        name: childData.name
-                    }))
-                }));
-                analysis.questionHierarchy = rootQuestions;
-                console.log('Rubric Analysis:', analysis);
-                return analysis;
-            },
-            getRubricItem: async (itemId) => {
-                const rubricMap = await window.supergrader.testRubric();
-                if (!rubricMap)
-                    return null;
-                const questionId = rubricMap.itemToQuestion[itemId];
-                if (!questionId) {
-                    console.error(`Item ${itemId} not found`);
-                    return null;
+                return rubricMap;
+            }
+            catch (error) {
+                console.error('supergrader: Rubric retrieval failed:', error);
+                return null;
+            }
+        },
+        analyzeRubric: async () => {
+            const rubricMap = await window.supergrader.testRubric();
+            if (!rubricMap)
+                return null;
+            const analysis = {
+                totalQuestions: Object.keys(rubricMap.questions).length,
+                totalItems: Object.keys(rubricMap.itemToQuestion).length,
+                questionsByType: { CHECKBOX: 0, RADIO: 0 },
+                parentChildRelationships: 0,
+                pointsDistribution: { positive: 0, negative: 0, zero: 0 },
+                questionHierarchy: []
+            };
+            // Analyze question structure
+            Object.entries(rubricMap.questions).forEach(([_, qData]) => {
+                analysis.questionsByType[qData.rubricStyle]++;
+                if (qData.parentId !== null) {
+                    analysis.parentChildRelationships++;
                 }
-                const question = rubricMap.questions[questionId];
-                const item = question.items.find((i) => i.id === itemId);
-                const result = {
-                    item,
-                    question: {
-                        id: questionId,
-                        name: question.name,
-                        parentId: question.parentId,
-                        rubricStyle: question.rubricStyle
+                // Analyze points distribution
+                qData.items.forEach((item) => {
+                    if (item.points > 0)
+                        analysis.pointsDistribution.positive++;
+                    else if (item.points < 0)
+                        analysis.pointsDistribution.negative++;
+                    else
+                        analysis.pointsDistribution.zero++;
+                });
+            });
+            // Build question hierarchy
+            const rootQuestions = Object.entries(rubricMap.questions)
+                .filter(([_, qData]) => qData.parentId === null)
+                .map(([qId, qData]) => ({
+                id: parseInt(qId),
+                name: qData.name,
+                children: Object.entries(rubricMap.questions)
+                    .filter(([_, childData]) => childData.parentId === parseInt(qId))
+                    .map(([childId, childData]) => ({
+                    id: parseInt(childId),
+                    name: childData.name
+                }))
+            }));
+            analysis.questionHierarchy = rootQuestions;
+            console.log('Rubric Analysis:', analysis);
+            return analysis;
+        },
+        getRubricItem: async (itemId) => {
+            const rubricMap = await window.supergrader.testRubric();
+            if (!rubricMap)
+                return null;
+            const questionId = rubricMap.itemToQuestion[itemId];
+            if (!questionId) {
+                console.error(`Item ${itemId} not found`);
+                return null;
+            }
+            const question = rubricMap.questions[questionId];
+            const item = question.items.find((i) => i.id === itemId);
+            const result = {
+                item,
+                question: {
+                    id: questionId,
+                    name: question.name,
+                    parentId: question.parentId,
+                    rubricStyle: question.rubricStyle
+                }
+            };
+            console.log(`Item ${itemId}:`, result);
+            return result;
+        },
+        validateRubricStructure: async () => {
+            console.log('supergrader: Validating rubric structure...');
+            const rubricMap = await window.supergrader.testRubric();
+            if (!rubricMap)
+                return false;
+            const issues = [];
+            // Check for orphaned items
+            Object.entries(rubricMap.itemToQuestion).forEach(([itemId, questionId]) => {
+                if (!rubricMap.questions[questionId]) {
+                    issues.push(`Orphaned item ${itemId} points to non-existent question ${questionId}`);
+                }
+            });
+            // Check for missing reverse mappings
+            Object.entries(rubricMap.questions).forEach(([questionId, question]) => {
+                question.items.forEach((item) => {
+                    if (rubricMap.itemToQuestion[item.id] !== parseInt(questionId)) {
+                        issues.push(`Item ${item.id} in question ${questionId} not properly mapped in itemToQuestion`);
                     }
-                };
-                console.log(`Item ${itemId}:`, result);
+                });
+            });
+            // Check parent-child consistency
+            Object.entries(rubricMap.questions).forEach(([questionId, question]) => {
+                if (question.parentId !== null) {
+                    if (!rubricMap.questions[question.parentId]) {
+                        issues.push(`Question ${questionId} has non-existent parent ${question.parentId}`);
+                    }
+                }
+            });
+            if (issues.length === 0) {
+                console.log('✅ Rubric structure validation passed');
+                return true;
+            }
+            else {
+                console.error('❌ Rubric structure validation failed:');
+                issues.forEach((issue) => console.error(`  - ${issue}`));
+                return false;
+            }
+        },
+        // Unified rubric functions - works on all Gradescope layouts
+        testUnifiedRubric: () => {
+            console.log('📝 Testing unified rubric detection...');
+            const result = getRubric();
+            if (!result) {
+                console.info('❌ No rubric or score box found');
+                return null;
+            }
+            if (result.type === 'manual') {
+                console.info('✅ Manual-score interface detected');
+                console.log('Score box:', result.box);
                 return result;
-            },
-            validateRubricStructure: async () => {
-                console.log('supergrader: Validating rubric structure...');
-                const rubricMap = await window.supergrader.testRubric();
-                if (!rubricMap)
-                    return false;
-                const issues = [];
-                // Check for orphaned items
-                Object.entries(rubricMap.itemToQuestion).forEach(([itemId, questionId]) => {
-                    if (!rubricMap.questions[questionId]) {
-                        issues.push(`Orphaned item ${itemId} points to non-existent question ${questionId}`);
-                    }
+            }
+            else {
+                console.info(`✅ Structured rubric detected – ${result.items.length} items (${result.rubricStyle})`);
+                console.log('Items:', result.items);
+                result.items.forEach(item => {
+                    console.log(`  ${item.id}: "${item.description}" (${item.points} pts)`);
                 });
-                // Check for missing reverse mappings
-                Object.entries(rubricMap.questions).forEach(([questionId, question]) => {
-                    question.items.forEach((item) => {
-                        if (rubricMap.itemToQuestion[item.id] !== parseInt(questionId)) {
-                            issues.push(`Item ${item.id} in question ${questionId} not properly mapped in itemToQuestion`);
-                        }
-                    });
-                });
-                // Check parent-child consistency
-                Object.entries(rubricMap.questions).forEach(([questionId, question]) => {
-                    if (question.parentId !== null) {
-                        if (!rubricMap.questions[question.parentId]) {
-                            issues.push(`Question ${questionId} has non-existent parent ${question.parentId}`);
-                        }
-                    }
-                });
-                if (issues.length === 0) {
-                    console.log('✅ Rubric structure validation passed');
-                    return true;
-                }
-                else {
-                    console.error('❌ Rubric structure validation failed:');
-                    issues.forEach((issue) => console.error(`  - ${issue}`));
-                    return false;
-                }
-            },
-            // Unified rubric functions - works on all Gradescope layouts
-            testUnifiedRubric: () => {
-                console.log('📝 Testing unified rubric detection...');
-                const result = getRubric();
-                if (!result) {
-                    console.info('❌ No rubric or score box found');
-                    return null;
-                }
-                if (result.type === 'manual') {
-                    console.info('✅ Manual-score interface detected');
-                    console.log('Score box:', result.box);
-                    return result;
-                }
-                else {
-                    console.info(`✅ Structured rubric detected – ${result.items.length} items (${result.rubricStyle})`);
-                    console.log('Items:', result.items);
-                    result.items.forEach(item => {
-                        console.log(`  ${item.id}: "${item.description}" (${item.points} pts)`);
-                    });
-                    return result;
-                }
-            },
-            // Legacy iframe-based functions (for backwards compatibility)
-            testIframeRubric: async () => {
-                console.log('📝 Testing rubric extraction (legacy wrapper)...');
-                try {
-                    const rubricData = await getRubricFromIframe();
-                    console.log('✅ Rubric extraction successful!');
-                    console.log('Items:', rubricData.items);
-                    console.log('Style:', rubricData.rubricStyle);
-                    console.log('Points distribution:', rubricData.pointsDistribution);
-                    return rubricData;
-                }
-                catch (error) {
-                    console.error('❌ Rubric extraction failed:', error);
-                    return null;
-                }
-            },
-            // Unified apply functions
-            applyGrade: (rubricId, checked, score) => {
-                const rubricResult = getRubric();
-                return applyGrade(rubricResult, rubricId, checked, score);
-            },
-            applyRubric: (itemId, selected) => {
-                return applyRubricItem(itemId, selected);
-            },
-            // Utility functions
-            getRubric: () => getRubric(),
-            getInnerDoc: () => getInnerDoc(),
-            getIframeDoc: () => getIframeDocument()
-        };
-        console.log('supergrader: Console helper set up via fallback method');
-    }
-}, 1000);
+                return result;
+            }
+        },
+        // Legacy iframe-based functions (for backwards compatibility)
+        testIframeRubric: async () => {
+            console.log('📝 Testing rubric extraction (legacy wrapper)...');
+            try {
+                const rubricData = await getRubricFromIframe();
+                console.log('✅ Rubric extraction successful!');
+                console.log('Items:', rubricData.items);
+                console.log('Style:', rubricData.rubricStyle);
+                console.log('Points distribution:', rubricData.pointsDistribution);
+                return rubricData;
+            }
+            catch (error) {
+                console.error('❌ Rubric extraction failed:', error);
+                return null;
+            }
+        },
+        // Unified apply functions
+        applyGrade: (rubricId, checked, score) => {
+            const rubricResult = getRubric();
+            return applyGrade(rubricResult, rubricId, checked, score);
+        },
+        applyRubric: (itemId, selected) => {
+            return applyRubricItem(itemId, selected);
+        },
+        // Utility functions
+        getRubric: () => getRubric(),
+        getInnerDoc: () => getInnerDoc(),
+        getIframeDoc: () => getIframeDocument()
+    };
+    // Merge with any existing supergrader object
+    window.supergrader = Object.assign(window.supergrader || {}, apiHelpers);
+    const keys = Object.keys(window.supergrader);
+    console.log('supergrader: API helpers merged, final keys:', keys);
+})();
 // TESTING: Add test functionality to the existing UI
 // This avoids CSP violations while providing testing capability
 window.addEventListener('SUPERGRADER_TEST_DOWNLOAD', async (event) => {

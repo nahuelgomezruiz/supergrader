@@ -965,20 +965,20 @@ class GradescopeAPI {
 // Create global instance
 (window as any).GradescopeAPI = new GradescopeAPI();
 
-// Set up supergrader helper as fallback (in case content script version doesn't work)
-setTimeout(() => {
-  if (!(window as any).supergrader && (window as any).GradescopeAPI) {
-    (window as any).supergrader = {
-      api: (window as any).GradescopeAPI,
-      ui: (window as any).UIController,
-      getStatus: () => (window as any).GradescopeAPI?.getAuthStatus?.(),
-      getState: () => (window as any).supergraderState,
-      downloadTest: (submissionId: string) => {
-        const event = new CustomEvent('SUPERGRADER_TEST_DOWNLOAD', { 
-          detail: { submissionId } 
-        });
-        window.dispatchEvent(event);
-      },
+// Set up comprehensive console helpers using IIFE with Object.assign
+(() => {
+  const apiHelpers = {
+    // Ensure core properties are set (may override existing)
+    api: (window as any).GradescopeAPI,
+    ui: (window as any).UIController,
+    getStatus: () => (window as any).GradescopeAPI?.getAuthStatus?.(),
+    getState: () => (window as any).supergraderState,
+    downloadTest: (submissionId: string) => {
+      const event = new CustomEvent('SUPERGRADER_TEST_DOWNLOAD', { 
+        detail: { submissionId } 
+      });
+      window.dispatchEvent(event);
+    },
       testRubric: async () => {
         console.log('supergrader: Testing rubric retrieval...');
         
@@ -1192,9 +1192,16 @@ setTimeout(() => {
     getInnerDoc: () => getInnerDoc(),
     getIframeDoc: () => getIframeDocument()
   };
-  console.log('supergrader: Console helper set up via fallback method');
-  }
-}, 1000);
+
+  // Merge with any existing supergrader object
+  (window as any).supergrader = Object.assign(
+    (window as any).supergrader || {},
+    apiHelpers
+  );
+
+  const keys = Object.keys((window as any).supergrader);
+  console.log('supergrader: API helpers merged, final keys:', keys);
+})();
 
 // TESTING: Add test functionality to the existing UI
 // This avoids CSP violations while providing testing capability
