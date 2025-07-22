@@ -108,6 +108,7 @@ class UIController {
             <button class="ai-rubric-button" id="ai-rubric-button" style="background: #28a745;">📝 Test Rubric</button>
             <button class="ai-comprehensive-test-button" id="ai-comprehensive-test-button" style="background: #6f42c1; margin-top: 5px;">🚀 Comprehensive Rubric Test</button>
             <button class="ai-api-test-button" id="ai-api-test-button" style="background: #dc3545; margin-top: 5px;">🧪 Test API (Day 5)</button>
+            <button class="ai-show-data-button" id="ai-show-data-button" style="background: #fd7e14; margin-top: 5px;">🔍 Show Rubric Data</button>
           </div>
           <div class="ai-options">
             <label class="ai-checkbox">
@@ -248,6 +249,20 @@ class UIController {
                     catch (error) {
                         console.error('UIController: Error running API test', error);
                         this.showError('Failed to run API test');
+                    }
+                });
+            }
+            // Show rubric data button
+            const showDataButton = this.aiPanel.querySelector('#ai-show-data-button');
+            if (showDataButton) {
+                showDataButton.addEventListener('click', () => {
+                    try {
+                        console.log('🔍 UIController: Show rubric data button clicked');
+                        this.showRubricData();
+                    }
+                    catch (error) {
+                        console.error('UIController: Error showing rubric data', error);
+                        this.showError('Failed to show rubric data');
                     }
                 });
             }
@@ -752,14 +767,28 @@ class UIController {
                 const apiResults = api.extractRubricStructure();
                 const timing = Math.round(performance.now() - startTime);
                 if (Array.isArray(apiResults) && apiResults.length > 0) {
+                    // Log the actual rubric data for verification
+                    console.log('📋 ACTUAL RUBRIC DATA from GradescopeAPI:');
+                    console.log('='.repeat(50));
+                    apiResults.forEach((item, index) => {
+                        console.log(`${index + 1}. ID: "${item.id}" | Points: ${item.points} | Selected: ${item.currentlySelected}`);
+                        console.log(`   Description: "${item.description}"`);
+                        console.log(`   Category: "${item.category}" | Style: "${item.rubricStyle}"`);
+                        if (item.element) {
+                            console.log(`   DOM Element: ${item.element.tagName} with class "${item.element.className}"`);
+                        }
+                        console.log('');
+                    });
+                    console.log('='.repeat(50));
                     results.push({
                         test: 'GradescopeAPI.extractRubricStructure',
                         status: 'success',
-                        message: `✅ Found ${apiResults.length} rubric items`,
+                        message: `✅ Found ${apiResults.length} rubric items (see console for details)`,
                         timing
                     });
                 }
                 else if (Array.isArray(apiResults) && apiResults.length === 0) {
+                    console.log('📋 GradescopeAPI found no rubric items - checking page type...');
                     results.push({
                         test: 'GradescopeAPI.extractRubricStructure',
                         status: 'info',
@@ -788,7 +817,7 @@ class UIController {
                     message: `❌ Error: ${error.message}`
                 });
             }
-            // Test 2: Unified rubric system (getRubric)
+            // Test 2: Unified rubric system (getRubric) with detailed data logging
             this.updateProgress(2, 7, 'Testing unified rubric system...');
             await this.delay(500);
             try {
@@ -798,26 +827,61 @@ class UIController {
                     const unifiedResult = getRubric();
                     const timing = Math.round(performance.now() - startTime);
                     if (unifiedResult?.type === 'structured') {
+                        // Log the actual unified rubric data
+                        console.log('📝 ACTUAL UNIFIED RUBRIC DATA:');
+                        console.log('='.repeat(50));
+                        console.log(`Rubric Type: ${unifiedResult.type}`);
+                        console.log(`Rubric Style: ${unifiedResult.rubricStyle}`);
+                        console.log(`Total Items: ${unifiedResult.items.length}`);
+                        console.log('');
+                        unifiedResult.items.forEach((item, index) => {
+                            console.log(`${index + 1}. ID: "${item.id}" | Points: ${item.points}`);
+                            console.log(`   Description: "${item.description}"`);
+                            if (item.element) {
+                                const input = item.element.querySelector('input[type="checkbox"], input[type="radio"]');
+                                const isChecked = input ? input.checked : false;
+                                console.log(`   Currently selected: ${isChecked}`);
+                                console.log(`   Element: ${item.element.tagName}.${item.element.className}`);
+                            }
+                            console.log('');
+                        });
+                        console.log('='.repeat(50));
                         results.push({
                             test: 'Unified getRubric (Structured)',
                             status: 'success',
-                            message: `✅ Found ${unifiedResult.items.length} items (${unifiedResult.rubricStyle})`,
+                            message: `✅ Found ${unifiedResult.items.length} items (${unifiedResult.rubricStyle}) - see console`,
                             timing
                         });
                     }
                     else if (unifiedResult?.type === 'manual') {
+                        console.log('📝 MANUAL SCORING INTERFACE DETECTED:');
+                        console.log('='.repeat(50));
+                        console.log(`Rubric Type: ${unifiedResult.type}`);
+                        if (unifiedResult.box) {
+                            console.log(`Score Box: ${unifiedResult.box.tagName}`);
+                            console.log(`Current Value: "${unifiedResult.box.value}"`);
+                            console.log(`Placeholder: "${unifiedResult.box.placeholder}"`);
+                            console.log(`Name: "${unifiedResult.box.name}"`);
+                        }
+                        console.log('='.repeat(50));
                         results.push({
                             test: 'Unified getRubric (Manual)',
                             status: 'info',
-                            message: 'ℹ️ Manual scoring interface detected',
+                            message: 'ℹ️ Manual scoring interface detected - see console',
                             timing
                         });
                     }
                     else {
+                        console.log('📝 NO RUBRIC STRUCTURE FOUND:');
+                        console.log('='.repeat(50));
+                        console.log('getRubric() returned:', unifiedResult);
+                        console.log('Page URL:', window.location.href);
+                        console.log('Page title:', document.title);
+                        console.log('='.repeat(50));
                         results.push({
                             test: 'Unified getRubric',
                             status: 'info',
-                            message: 'ℹ️ No rubric structure found',
+                            message: 'ℹ️ No rubric structure found - see console',
                             timing
                         });
                     }
@@ -837,7 +901,7 @@ class UIController {
                     message: `❌ Error: ${error.message}`
                 });
             }
-            // Test 3: API-based system (fetchRubricMap) - only for assignments
+            // Test 3: API-based system (fetchRubricMap) - only for assignments with detailed logging
             this.updateProgress(3, 7, 'Testing API-based rubric system...');
             await this.delay(500);
             if (this.state?.assignmentType === 'assignments' && this.state?.courseId && this.state?.assignmentId) {
@@ -850,10 +914,27 @@ class UIController {
                         if (rubricMap?.questions) {
                             const questionCount = Object.keys(rubricMap.questions).length;
                             const itemCount = Object.keys(rubricMap.itemToQuestion).length;
+                            // Log the actual API rubric data
+                            console.log('🌐 ACTUAL API RUBRIC DATA (fetchRubricMap):');
+                            console.log('='.repeat(60));
+                            console.log(`Total Questions: ${questionCount}`);
+                            console.log(`Total Items: ${itemCount}`);
+                            console.log('');
+                            Object.entries(rubricMap.questions).forEach(([qId, qData]) => {
+                                console.log(`QUESTION ${qId}: "${qData.name}"`);
+                                console.log(`  Style: ${qData.rubricStyle} | Parent: ${qData.parentId || 'none'}`);
+                                console.log(`  Items (${qData.items.length}):`);
+                                qData.items.forEach((item, index) => {
+                                    console.log(`    ${index + 1}. ID: ${item.id} | Points: ${item.points}`);
+                                    console.log(`       Text: "${item.text}"`);
+                                });
+                                console.log('');
+                            });
+                            console.log('='.repeat(60));
                             results.push({
                                 test: 'API fetchRubricMap',
                                 status: 'success',
-                                message: `✅ Found ${questionCount} questions, ${itemCount} items`,
+                                message: `✅ Found ${questionCount} questions, ${itemCount} items - see console`,
                                 timing
                             });
                         }
@@ -1086,6 +1167,11 @@ class UIController {
             }
             // Run comprehensive API tests
             this.updateProgress(50, 100, 'Executing API test suite...');
+            // First show what rubric data we can actually see
+            console.log('🔍 SHOWING ACTUAL RUBRIC DATA BEFORE API TESTS:');
+            if (supergrader.showRubricData) {
+                supergrader.showRubricData();
+            }
             const results = await supergrader.testAPI();
             if (results && results.length > 0) {
                 // Count results by status
@@ -1179,6 +1265,21 @@ class UIController {
         console.log('// Access test data fixtures:');
         console.log('console.log(supergrader.API_TEST_FIXTURES); // Test data and mock scenarios');
         console.log('-'.repeat(40));
+    }
+    /**
+     * Show actual rubric data from the page
+     */
+    showRubricData() {
+        console.log('🔍 UIController: Showing rubric data...');
+        const supergrader = window.supergrader;
+        if (supergrader?.showRubricData) {
+            supergrader.showRubricData();
+            this.showError('✅ Rubric data shown in console - check F12 Developer Console', 'info');
+            setTimeout(() => this.hideError(), 4000);
+        }
+        else {
+            this.showError('❌ Rubric data function not available - try refreshing the page', 'error');
+        }
     }
     /**
      * Simple delay helper for test pacing

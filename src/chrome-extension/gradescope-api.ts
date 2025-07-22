@@ -1341,23 +1341,78 @@ function getRubric(): RubricResult {
   }
 
   // 2-b. Fallback to DOM selectors - works on iframe and legacy pages
-  const domItems = Array.from(root.querySelectorAll('.rubric-item[data-rubric-item-id]')) as HTMLElement[];
+  let domItems = Array.from(root.querySelectorAll('.rubric-item[data-rubric-item-id]')) as HTMLElement[];
+  
+  // 2-c. Try newer Gradescope interface with different class names
+  if (domItems.length === 0) {
+    domItems = Array.from(root.querySelectorAll('.rubricItem')) as HTMLElement[];
+    
+    // Also look for radio-button style groups (encoder Design, decoder Design, etc.)
+    const groupItems = Array.from(root.querySelectorAll('.rubricItemGroup')) as HTMLElement[];
+    domItems = domItems.concat(groupItems);
+  }
+  
   if (domItems.length) {
     const items: RubricItem[] = [];
     let hasRadio = false;
     
-    domItems.forEach((element) => {
-      const itemId = element.dataset.rubricItemId;
-      const description = element.querySelector('.rubric-description, .description')?.textContent?.trim();
-      const pointsText = element.querySelector('.points')?.textContent?.trim();
-      const points = pointsText ? parseFloat(pointsText.replace(/[^\d.-]/g, '')) || 0 : 0;
+    domItems.forEach((element, index) => {
+      // Handle both old and new Gradescope interfaces
+      let itemId = element.dataset.rubricItemId;
+      let description = element.querySelector('.rubric-description, .description')?.textContent?.trim();
+      let pointsText = element.querySelector('.points')?.textContent?.trim();
+      let points = pointsText ? parseFloat(pointsText.replace(/[^\d.-]/g, '')) || 0 : 0;
       
-      // Check for radio buttons
-      if (element.querySelector('input[type="radio"]')) {
+             // New Gradescope interface (.rubricItem)
+       if (!itemId) {
+         // Handle radio-button style groups (.rubricItemGroup)
+         if (element.classList.contains('rubricItemGroup')) {
+           const groupKeyButton = element.querySelector('.rubricItemGroup--key');
+           itemId = groupKeyButton?.textContent?.trim() || `group_${index}`;
+           
+           // Get the main group description (like "encoder Design")
+           const groupDescElement = element.querySelector('.rubricField-description');
+           const groupDesc = groupDescElement?.textContent?.trim();
+           
+           // Find all available options in this group
+           const summaryElement = element.querySelector('.rubricItemGroupSummary');
+           const summaryDesc = summaryElement?.querySelector('.rubricItemGroupSummary--description--widthContainer')?.textContent?.trim();
+           
+           // Get the currently selected option's points
+           const summaryPoints = summaryElement?.querySelector('.rubricItemGroupSummary--points')?.textContent?.trim();
+           const summaryPointValue = summaryPoints ? parseFloat(summaryPoints.replace(/[^\d.-]/g, '')) || 0 : 0;
+           
+           // Build description showing this is a radio group with options
+           description = `${groupDesc || 'Radio Group'} (Select one option)`;
+           if (summaryDesc) {
+             description += ` - Currently selected: "${summaryDesc}" (${summaryPointValue} pts)`;
+           }
+           
+           points = summaryPointValue;
+           hasRadio = true; // This is definitely a radio-style group
+           
+         } else {
+           // Regular rubric item (.rubricItem)
+           const keyButton = element.querySelector('.rubricItem--key');
+           itemId = keyButton?.textContent?.trim() || `item_${index}`;
+           
+           // Get description from rubricField-description
+           const descElement = element.querySelector('.rubricField-description, .rubricField.rubricField-description');
+           description = descElement?.textContent?.trim();
+           
+           // Get points from rubricField-points
+           const pointsElement = element.querySelector('.rubricField-points, .rubricField.rubricField-points');
+           pointsText = pointsElement?.textContent?.trim();
+           points = pointsText ? parseFloat(pointsText.replace(/[^\d.-]/g, '')) || 0 : 0;
+         }
+       }
+      
+      // Check for radio buttons or applied state
+      if (element.querySelector('input[type="radio"]') || element.classList.contains('rubricItemGroup')) {
         hasRadio = true;
       }
       
-      if (itemId) {
+      if (itemId && description) {
         items.push({
           id: itemId,
           description: description || '',
@@ -1372,7 +1427,7 @@ function getRubric(): RubricResult {
     return { type: 'structured', items, rubricStyle };
   }
 
-  // 2-c. Detect manual-scoring single box
+  // 2-d. Detect manual-scoring single box
   const scoreBox = root.querySelector<HTMLInputElement>('input[name="score"], input[type="number"][placeholder*="score" i], input[type="number"][id*="score" i]');
   if (scoreBox) {
     console.log('📝 Found manual scoring input box');
@@ -2459,7 +2514,91 @@ function initializeAPITesting() {
   // Add test data fixtures to global namespace
   (window as any).supergrader.API_TEST_FIXTURES = API_TEST_FIXTURES;
   
+  // Add quick rubric inspection function
+  (window as any).supergrader.showRubricData = () => {
+    console.log('🔍 QUICK RUBRIC DATA INSPECTION:');
+    console.log('='.repeat(60));
+    
+    // Check unified system
+    const getRubric = (window as any).getRubric;
+    if (typeof getRubric === 'function') {
+      const rubricResult = getRubric();
+      
+      if (rubricResult?.type === 'structured') {
+        console.log('📝 STRUCTURED RUBRIC FOUND:');
+        console.log(`Style: ${rubricResult.rubricStyle} | Items: ${rubricResult.items.length}`);
+        console.log('');
+        
+        rubricResult.items.forEach((item: any, index: number) => {
+          console.log(`${index + 1}. "${item.description}" (${item.points} pts)`);
+          console.log(`   ID: ${item.id}`);
+          if (item.element) {
+            const input = item.element.querySelector('input[type="checkbox"], input[type="radio"]');
+            console.log(`   Currently: ${input?.checked ? 'SELECTED' : 'unselected'}`);
+          }
+          console.log('');
+        });
+        
+      } else if (rubricResult?.type === 'manual') {
+        console.log('📝 MANUAL SCORING INTERFACE:');
+        console.log(`Score box value: "${rubricResult.box?.value || '(empty)'}"`);
+        
+           } else {
+       console.log('❌ NO RUBRIC FOUND on this page');
+       console.log('Page URL:', window.location.href);
+       console.log('');
+       
+       // Debug: Let's see what DOM elements are actually available
+       console.log('🔧 DEBUGGING - Available DOM elements:');
+       console.log('Rubric items (.rubric-item):', document.querySelectorAll('.rubric-item').length);
+       console.log('Rubric items with IDs:', document.querySelectorAll('.rubric-item[data-rubric-item-id]').length);
+       console.log('Score inputs:', document.querySelectorAll('input[type="number"]').length);
+       console.log('Text areas:', document.querySelectorAll('textarea').length);
+       console.log('All inputs:', document.querySelectorAll('input').length);
+       console.log('Iframes:', document.querySelectorAll('iframe').length);
+       
+       // Check if we can find rubric-related elements
+       const possibleRubrics = document.querySelectorAll('[class*="rubric"], [class*="score"], [class*="grade"]');
+       console.log('Elements with rubric/score/grade classes:', possibleRubrics.length);
+       
+       if (possibleRubrics.length > 0) {
+         console.log('Found elements that might be rubric-related:');
+         possibleRubrics.forEach((el, i) => {
+           console.log(`  ${i+1}. ${el.tagName}.${el.className} - "${el.textContent?.slice(0, 50)}..."`);
+         });
+       }
+       
+       // Check iframe content
+       const iframes = document.querySelectorAll('iframe');
+       if (iframes.length > 0) {
+         console.log('Found iframes - checking content:');
+         iframes.forEach((iframe, i) => {
+           try {
+             console.log(`  Iframe ${i+1}: ${iframe.src || 'no src'}`);
+             if (iframe.contentDocument) {
+               const iframeRubrics = iframe.contentDocument.querySelectorAll('.rubric-item');
+               console.log(`    Contains ${iframeRubrics.length} .rubric-item elements`);
+             } else {
+               console.log('    Cannot access iframe content (cross-origin or not loaded)');
+             }
+                       } catch (e) {
+              console.log(`    Error accessing iframe ${i+1}: ${(e as Error).message}`);
+            }
+         });
+       }
+     }
+    } else {
+      console.log('❌ getRubric function not available');
+    }
+    
+    console.log('='.repeat(60));
+    console.log('💡 TIP: Run this on a Gradescope grading page to see actual rubric content');
+  };
+  
   console.log('🧪 API testing functions initialized');
+  console.log('💡 Quick commands:');
+  console.log('   supergrader.showRubricData() - Show actual rubric content');
+  console.log('   supergrader.testAPI() - Full API test suite');
 }
 
 // Initialize API testing when script loads

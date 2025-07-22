@@ -148,6 +148,10 @@ declare class UIController {
      */
     private logUsageExamples;
     /**
+     * Show actual rubric data from the page
+     */
+    private showRubricData;
+    /**
      * Simple delay helper for test pacing
      */
     private delay;
