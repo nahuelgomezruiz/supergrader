@@ -70,22 +70,25 @@ The rubric retrieval functionality can be tested on any Gradescope grading page.
    supergrader
    ```
 
-3. **Test Rubric Retrieval**
+3. **Test Rubric Retrieval** (Works on ALL Gradescope layouts!)
    ```javascript
-   // Basic test - works on both assignment and question pages
-   await supergrader.testRubric();
+   // 🛡️ UNIFIED: Works on all three layout types
+   supergrader.testUnifiedRubric();  // Best choice - handles everything
+   
+   // Button test: Click the "📝 Test Rubric" button in the UI panel
+   
+   // For structured rubrics - toggle items
+   const rubric = supergrader.getRubric();
+   supergrader.applyGrade('12345', true);   // select rubric item 12345
+   supergrader.applyGrade('12346', false);  // deselect rubric item 12346
+   
+   // For manual scoring - set numeric score
+   supergrader.applyGrade(undefined, undefined, undefined, 85.5); // set score to 85.5
 
-   // For question pages specifically - test iframe extraction
-   await supergrader.testIframeRubric();
-
-   // Toggle a rubric item (question pages only)
-   supergrader.applyRubric(itemId, true);  // select item
-   supergrader.applyRubric(itemId, false); // deselect item
-
-   // Traditional assignment page functions
-   await supergrader.analyzeRubric();
-   await supergrader.validateRubricStructure();
-   await supergrader.getRubricItem(123);
+   // Legacy functions (still work)
+   await supergrader.testRubric();      // API-based for assignments
+   await supergrader.testIframeRubric(); // iframe-based wrapper
+   await supergrader.analyzeRubric();   // assignment analysis
    ```
 
 ### Expected Output
@@ -216,14 +219,24 @@ interface QuestionData {
 
 ## 🎯 Features
 
-### ✅ Implemented
+### ✅ Bullet-Proof Rubric System
+
+- **🛡️ Universal Compatibility**: Handles ALL three Gradescope layout types:
+  - **Legacy iframe + structured rubric** (old question pages)
+  - **Frameless React + structured rubric** (new question pages)  
+  - **Manual scoring interfaces** (free-points input boxes)
+- **🎯 Smart Detection**: Automatically detects interface type and chooses optimal method
+- **🔄 Interactive Control**: Both structured rubric toggling & manual score setting
+- **📝 UI Integration**: Test button + comprehensive console API
+
+### ✅ Core Implementation
 
 - **Hierarchical Questions**: Handles parent/child question relationships
 - **Rubric Styles**: Distinguishes between "Select One" (RADIO) and "Select Many" (CHECKBOX) 
 - **Smart Caching**: 12-hour cache with Chrome storage integration
 - **Performance Optimized**: Batched API requests for large assignments
 - **Error Resilient**: Graceful handling of network and storage errors
-- **Comprehensive Testing**: 12 test scenarios with MSW mocking
+- **Comprehensive Testing**: 27+ test scenarios covering all layouts
 
 ### 🚀 Performance
 

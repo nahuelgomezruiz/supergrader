@@ -185,11 +185,15 @@ declare class GradescopeAPI {
      */
     private containsBinaryData;
     /**
-     * Extract rubric structure from DOM (placeholder - Week 2)
+     * Extract rubric structure from DOM - Week 2 Day 3-4 Implementation
      */
     extractRubricStructure(): any[];
     /**
-     * Toggle a rubric item (placeholder - Week 2)
+     * Check if a rubric item is currently selected
+     */
+    private isRubricItemSelected;
+    /**
+     * Toggle a rubric item - Week 2 Day 3-4 Implementation
      */
     toggleRubricItem(_questionId: string, rubricItemId: string, _points: number, _description: string): Promise<{
         success: boolean;
@@ -204,11 +208,39 @@ declare class GradescopeAPI {
     }>;
 }
 /**
- * Get access to the iframe document containing the rubric
+ * Get document for rubric extraction - handles both iframe and frameless layouts
+ */
+declare function getInnerDoc(): Document;
+/**
+ * Legacy function for backwards compatibility
  */
 declare function getIframeDocument(): Document | null;
+interface RubricItem {
+    id: string | number;
+    description?: string;
+    points?: number;
+    element?: HTMLElement;
+}
+interface StructuredRubric {
+    type: 'structured';
+    items: RubricItem[];
+    rubricStyle: 'CHECKBOX' | 'RADIO';
+}
+interface ManualRubric {
+    type: 'manual';
+    box: HTMLInputElement;
+}
+type RubricResult = StructuredRubric | ManualRubric | null;
 /**
- * Extract rubric items from iframe DOM
+ * Unified rubric detection - handles all Gradescope layouts
+ */
+declare function getRubric(): RubricResult;
+/**
+ * Apply grading action - handles both structured rubrics and manual scoring
+ */
+declare function applyGrade(target: RubricResult, rubricId?: string, checked?: boolean, score?: number): boolean;
+/**
+ * Extract rubric items using unified detection (legacy wrapper)
  */
 declare function getRubricFromIframe(): Promise<{
     items: Array<{
@@ -224,7 +256,7 @@ declare function getRubricFromIframe(): Promise<{
     };
 }>;
 /**
- * Apply rubric selection by clicking the appropriate input in iframe
+ * Apply rubric selection (legacy wrapper for applyGrade)
  */
 declare function applyRubricItem(itemId: number, selected: boolean): boolean;
 declare function updateAuthStatusInDOM(): void;

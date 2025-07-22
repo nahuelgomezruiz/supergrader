@@ -672,20 +672,86 @@ class GradescopeAPI {
         return nonPrintableRatio > 0.1;
     }
     /**
-     * Extract rubric structure from DOM (placeholder - Week 2)
+     * Extract rubric structure from DOM - Week 2 Day 3-4 Implementation
      */
     extractRubricStructure() {
         console.log('GradescopeAPI: Extracting rubric structure...');
-        // TODO: Implement rubric parsing (Week 2)
-        return [];
+        // Use the unified rubric detection system
+        const rubricResult = getRubric();
+        if (!rubricResult) {
+            console.log('GradescopeAPI: No rubric structure found');
+            return [];
+        }
+        if (rubricResult.type === 'manual') {
+            console.log('GradescopeAPI: Manual scoring interface - no structured items');
+            return [];
+        }
+        // Convert unified format to legacy format for backwards compatibility
+        const rubricItems = rubricResult.items.map(item => ({
+            id: typeof item.id === 'string' ? item.id : String(item.id),
+            description: item.description || '',
+            points: item.points || 0,
+            category: 'default', // For simple cases, all items in same category
+            currentlySelected: this.isRubricItemSelected(item.element),
+            rubricStyle: rubricResult.rubricStyle
+        }));
+        console.log(`GradescopeAPI: Extracted ${rubricItems.length} rubric items`);
+        return rubricItems;
     }
     /**
-     * Toggle a rubric item (placeholder - Week 2)
+     * Check if a rubric item is currently selected
+     */
+    isRubricItemSelected(element) {
+        if (!element)
+            return false;
+        const input = element.querySelector('input[type="checkbox"], input[type="radio"]');
+        return input ? input.checked : false;
+    }
+    /**
+     * Toggle a rubric item - Week 2 Day 3-4 Implementation
      */
     async toggleRubricItem(_questionId, rubricItemId, _points, _description) {
         console.log(`GradescopeAPI: Toggling rubric item ${rubricItemId}`);
-        // TODO: Implement rubric item toggle (Week 2)
-        return { success: false, message: 'Not implemented yet' };
+        try {
+            // Get current rubric structure
+            const rubricResult = getRubric();
+            if (!rubricResult) {
+                return { success: false, message: 'No rubric structure found on page' };
+            }
+            if (rubricResult.type === 'manual') {
+                return { success: false, message: 'Manual scoring interface - no structured rubric items' };
+            }
+            // Find the target item
+            const targetItem = rubricResult.items.find(item => String(item.id) === String(rubricItemId));
+            if (!targetItem) {
+                return { success: false, message: `Rubric item ${rubricItemId} not found` };
+            }
+            // Get current state
+            const currentlySelected = this.isRubricItemSelected(targetItem.element);
+            const newState = !currentlySelected;
+            // Apply the change using unified system
+            const success = applyGrade(rubricResult, rubricItemId, newState);
+            if (success) {
+                const action = newState ? 'selected' : 'deselected';
+                return {
+                    success: true,
+                    message: `Successfully ${action} rubric item ${rubricItemId} (${_points} pts)`
+                };
+            }
+            else {
+                return {
+                    success: false,
+                    message: `Failed to toggle rubric item ${rubricItemId}`
+                };
+            }
+        }
+        catch (error) {
+            console.error('Error toggling rubric item:', error);
+            return {
+                success: false,
+                message: `Error toggling rubric item: ${error.message}`
+            };
+        }
     }
     /**
      * Add inline comment to code (placeholder - Week 2)
@@ -852,28 +918,56 @@ setTimeout(() => {
                     return false;
                 }
             },
-            // iframe-based rubric functions for question pages
+            // Unified rubric functions - works on all Gradescope layouts
+            testUnifiedRubric: () => {
+                console.log('📝 Testing unified rubric detection...');
+                const result = getRubric();
+                if (!result) {
+                    console.info('❌ No rubric or score box found');
+                    return null;
+                }
+                if (result.type === 'manual') {
+                    console.info('✅ Manual-score interface detected');
+                    console.log('Score box:', result.box);
+                    return result;
+                }
+                else {
+                    console.info(`✅ Structured rubric detected – ${result.items.length} items (${result.rubricStyle})`);
+                    console.log('Items:', result.items);
+                    result.items.forEach(item => {
+                        console.log(`  ${item.id}: "${item.description}" (${item.points} pts)`);
+                    });
+                    return result;
+                }
+            },
+            // Legacy iframe-based functions (for backwards compatibility)
             testIframeRubric: async () => {
-                console.log('📝 Testing iframe rubric extraction...');
+                console.log('📝 Testing rubric extraction (legacy wrapper)...');
                 try {
                     const rubricData = await getRubricFromIframe();
-                    console.log('✅ Iframe rubric extraction successful!');
+                    console.log('✅ Rubric extraction successful!');
                     console.log('Items:', rubricData.items);
                     console.log('Style:', rubricData.rubricStyle);
                     console.log('Points distribution:', rubricData.pointsDistribution);
                     return rubricData;
                 }
                 catch (error) {
-                    console.error('❌ Iframe rubric extraction failed:', error);
+                    console.error('❌ Rubric extraction failed:', error);
                     return null;
                 }
+            },
+            // Unified apply functions
+            applyGrade: (rubricId, checked, score) => {
+                const rubricResult = getRubric();
+                return applyGrade(rubricResult, rubricId, checked, score);
             },
             applyRubric: (itemId, selected) => {
                 return applyRubricItem(itemId, selected);
             },
-            getIframeDoc: () => {
-                return getIframeDocument();
-            }
+            // Utility functions
+            getRubric: () => getRubric(),
+            getInnerDoc: () => getInnerDoc(),
+            getIframeDoc: () => getIframeDocument()
         };
         console.log('supergrader: Console helper set up via fallback method');
     }
@@ -930,125 +1024,214 @@ window.addEventListener('SUPERGRADER_TEST_DOWNLOAD', async (event) => {
     }
 });
 /**
- * Get access to the iframe document containing the rubric
+ * Get document for rubric extraction - handles both iframe and frameless layouts
  */
-function getIframeDocument() {
-    const iframe = document.querySelector('iframe[src*="submissions"]');
-    if (!iframe) {
-        console.log('📝 No submission iframe found');
-        return null;
-    }
-    const doc = iframe.contentDocument || iframe.contentWindow?.document;
-    if (!doc) {
-        console.log('📝 Cannot access iframe document (cross-origin?)');
-        return null;
-    }
-    return doc;
+function getInnerDoc() {
+    const frame = document.querySelector('iframe[src*="submissions"]');
+    return frame?.contentDocument ?? frame?.contentWindow?.document ?? document;
 }
 /**
- * Extract rubric items from iframe DOM
+ * Legacy function for backwards compatibility
+ */
+function getIframeDocument() {
+    const doc = getInnerDoc();
+    return doc === document ? null : doc; // Return null if fallback to main document
+}
+/**
+ * Unified rubric detection - handles all Gradescope layouts
+ */
+function getRubric() {
+    const root = getInnerDoc();
+    // 2-a. Try hidden React props - works on frameless pages
+    const propsEl = root.querySelector('[data-react-props]');
+    if (propsEl) {
+        try {
+            const propsAttr = propsEl.getAttribute('data-react-props');
+            if (propsAttr) {
+                const data = JSON.parse(atob(propsAttr));
+                if (data?.rubricItems?.length) {
+                    const items = data.rubricItems.map((item) => ({
+                        id: item.id || item.rubric_item_id,
+                        description: item.description || item.text,
+                        points: item.points || 0
+                    }));
+                    // Determine style from React data or default to CHECKBOX
+                    const rubricStyle = data.rubricStyle || 'CHECKBOX';
+                    console.log(`📝 Found ${items.length} rubric items via React props`);
+                    return { type: 'structured', items, rubricStyle };
+                }
+            }
+        }
+        catch (error) {
+            console.log('📝 Failed to parse React props, falling back to DOM');
+        }
+    }
+    // 2-b. Fallback to DOM selectors - works on iframe and legacy pages
+    const domItems = Array.from(root.querySelectorAll('.rubric-item[data-rubric-item-id]'));
+    if (domItems.length) {
+        const items = [];
+        let hasRadio = false;
+        domItems.forEach((element) => {
+            const itemId = element.dataset.rubricItemId;
+            const description = element.querySelector('.rubric-description, .description')?.textContent?.trim();
+            const pointsText = element.querySelector('.points')?.textContent?.trim();
+            const points = pointsText ? parseFloat(pointsText.replace(/[^\d.-]/g, '')) || 0 : 0;
+            // Check for radio buttons
+            if (element.querySelector('input[type="radio"]')) {
+                hasRadio = true;
+            }
+            if (itemId) {
+                items.push({
+                    id: itemId,
+                    description: description || '',
+                    points,
+                    element
+                });
+            }
+        });
+        const rubricStyle = hasRadio ? 'RADIO' : 'CHECKBOX';
+        console.log(`📝 Found ${items.length} rubric items via DOM selectors`);
+        return { type: 'structured', items, rubricStyle };
+    }
+    // 2-c. Detect manual-scoring single box
+    const scoreBox = root.querySelector('input[name="score"], input[type="number"][placeholder*="score" i], input[type="number"][id*="score" i]');
+    if (scoreBox) {
+        console.log('📝 Found manual scoring input box');
+        return { type: 'manual', box: scoreBox };
+    }
+    // Additional fallback - look for any number input in grading context
+    const numberInputs = Array.from(root.querySelectorAll('input[type="number"]'));
+    const gradingInput = numberInputs.find(input => input.placeholder?.toLowerCase().includes('score') ||
+        input.placeholder?.toLowerCase().includes('points') ||
+        input.name?.toLowerCase().includes('score') ||
+        input.id?.toLowerCase().includes('score'));
+    if (gradingInput) {
+        console.log('📝 Found grading number input as fallback');
+        return { type: 'manual', box: gradingInput };
+    }
+    return null; // nothing found
+}
+/**
+ * Apply grading action - handles both structured rubrics and manual scoring
+ */
+function applyGrade(target, rubricId, checked, score) {
+    if (!target) {
+        console.error('No rubric detected');
+        return false;
+    }
+    if (target.type === 'structured') {
+        if (!rubricId) {
+            console.error('Rubric ID required for structured rubric');
+            return false;
+        }
+        // Find the rubric item
+        const item = target.items.find(i => String(i.id) === String(rubricId));
+        if (!item) {
+            console.error(`Rubric item ${rubricId} not found`);
+            return false;
+        }
+        // Handle React-based items (no element property)
+        if (!item.element) {
+            console.error('Cannot toggle React-based rubric items directly (no DOM element)');
+            return false;
+        }
+        const input = item.element.querySelector('input[type="checkbox"], input[type="radio"]');
+        if (!input) {
+            console.error(`No input found for rubric item ${rubricId}`);
+            return false;
+        }
+        // Only click if the current state differs from desired state
+        if (checked !== undefined && input.checked !== checked) {
+            console.log(`📝 ${checked ? 'Selecting' : 'Deselecting'} rubric item ${rubricId}`);
+            input.click(); // This triggers Gradescope's own event handlers
+            return true;
+        }
+        else if (checked === undefined) {
+            // Just toggle if no specific state requested
+            console.log(`📝 Toggling rubric item ${rubricId}`);
+            input.click();
+            return true;
+        }
+        else {
+            console.log(`📝 Rubric item ${rubricId} already in desired state (${checked})`);
+            return true;
+        }
+    }
+    else if (target.type === 'manual') {
+        if (typeof score === 'number') {
+            console.log(`📝 Setting manual score to ${score}`);
+            target.box.value = String(score);
+            // Trigger change event for React/Angular listeners
+            target.box.dispatchEvent(new Event('input', { bubbles: true }));
+            target.box.dispatchEvent(new Event('change', { bubbles: true }));
+            return true;
+        }
+        else {
+            console.error('Score value required for manual scoring');
+            return false;
+        }
+    }
+    return false;
+}
+/**
+ * Extract rubric items using unified detection (legacy wrapper)
  */
 async function getRubricFromIframe() {
     return new Promise((resolve, reject) => {
-        const checkIframe = () => {
-            const doc = getIframeDocument();
-            if (!doc) {
-                reject(new Error('Cannot access iframe document'));
-                return;
-            }
-            // Wait for iframe to load rubric content
-            const rubricItems = doc.querySelectorAll('.rubric-item[data-rubric-item-id]');
-            if (rubricItems.length === 0) {
-                // Check if iframe is still loading
+        const checkRubric = () => {
+            const rubricResult = getRubric();
+            if (!rubricResult) {
+                // Check if we should retry (DOM might still be loading)
+                const doc = getInnerDoc();
                 if (doc.readyState !== 'complete') {
-                    setTimeout(checkIframe, 500);
+                    setTimeout(checkRubric, 500);
                     return;
                 }
                 else {
-                    reject(new Error('No rubric items found in iframe'));
+                    reject(new Error('No rubric or score box found'));
                     return;
                 }
             }
-            console.log(`📝 Found ${rubricItems.length} rubric items in iframe`);
-            const items = [];
-            let hasRadio = false;
-            let positivePoints = 0;
-            let negativePoints = 0;
-            let zeroPoints = 0;
-            rubricItems.forEach((item) => {
-                const itemElement = item;
-                const itemId = itemElement.dataset.rubricItemId;
-                const description = itemElement.querySelector('.rubric-description, .description')?.textContent?.trim();
-                const pointsText = itemElement.querySelector('.points')?.textContent?.trim();
-                // Detect if any items use radio buttons
-                const radioInput = itemElement.querySelector('input[type="radio"]');
-                if (radioInput)
-                    hasRadio = true;
-                if (itemId && description && pointsText) {
-                    const points = parseFloat(pointsText.replace(/[^\d.-]/g, '')) || 0;
-                    const id = parseInt(itemId, 10);
-                    if (!isNaN(id)) {
-                        items.push({
-                            id,
-                            text: description,
-                            points
-                        });
-                        // Track points distribution
-                        if (points > 0)
-                            positivePoints++;
-                        else if (points < 0)
-                            negativePoints++;
-                        else
-                            zeroPoints++;
-                        console.log(`  Item ${id}: "${description}" (${points} pts)`);
-                    }
-                }
-            });
-            if (items.length === 0) {
-                reject(new Error('No valid rubric items parsed from iframe'));
+            if (rubricResult.type === 'manual') {
+                reject(new Error('Manual scoring interface - no structured rubric items'));
                 return;
             }
-            // Determine rubric style (radio if any radio buttons found, otherwise checkbox)
-            const rubricStyle = hasRadio ? "RADIO" : "CHECKBOX";
+            // Convert to legacy format
+            const items = rubricResult.items.map(item => ({
+                id: typeof item.id === 'string' ? parseInt(item.id, 10) : item.id,
+                text: item.description || '',
+                points: item.points || 0
+            }));
+            // Calculate points distribution
+            const pointsDistribution = items.reduce((acc, item) => {
+                if (item.points > 0)
+                    acc.positive++;
+                else if (item.points < 0)
+                    acc.negative++;
+                else
+                    acc.zero++;
+                return acc;
+            }, { positive: 0, negative: 0, zero: 0 });
+            console.log(`📝 Legacy wrapper: Found ${items.length} rubric items`);
+            items.forEach(item => {
+                console.log(`  Item ${item.id}: "${item.text}" (${item.points} pts)`);
+            });
             resolve({
                 items,
-                rubricStyle,
-                pointsDistribution: { positive: positivePoints, negative: negativePoints, zero: zeroPoints }
+                rubricStyle: rubricResult.rubricStyle,
+                pointsDistribution
             });
         };
         // Start checking immediately, then retry if needed
-        checkIframe();
+        checkRubric();
     });
 }
 /**
- * Apply rubric selection by clicking the appropriate input in iframe
+ * Apply rubric selection (legacy wrapper for applyGrade)
  */
 function applyRubricItem(itemId, selected) {
-    const doc = getIframeDocument();
-    if (!doc) {
-        console.error('Cannot access iframe to apply rubric item');
-        return false;
-    }
-    const rubricItem = doc.querySelector(`[data-rubric-item-id="${itemId}"]`);
-    if (!rubricItem) {
-        console.error(`Rubric item ${itemId} not found in iframe`);
-        return false;
-    }
-    const input = rubricItem.querySelector('input[type="checkbox"], input[type="radio"]');
-    if (!input) {
-        console.error(`No input found for rubric item ${itemId}`);
-        return false;
-    }
-    // Only click if the current state differs from desired state
-    if (input.checked !== selected) {
-        console.log(`📝 ${selected ? 'Selecting' : 'Deselecting'} rubric item ${itemId}`);
-        input.click(); // This triggers Gradescope's own event handlers
-        return true;
-    }
-    else {
-        console.log(`📝 Rubric item ${itemId} already in desired state (${selected})`);
-        return true;
-    }
+    const rubricResult = getRubric();
+    return applyGrade(rubricResult, String(itemId), selected);
 }
 // TESTING: Add rubric test functionality - Week 2 Day 3-4: Rubric Parsing
 window.addEventListener('SUPERGRADER_TEST_RUBRIC', async (_event) => {
