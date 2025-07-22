@@ -140,6 +140,10 @@ declare class UIController {
      */
     private showComprehensiveResults;
     /**
+     * Test API functionality - Week 2 Day 5: API Testing
+     */
+    private testAPI;
+    /**
      * Log usage examples for developers
      */
     private logUsageExamples;

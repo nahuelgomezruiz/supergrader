@@ -107,6 +107,7 @@ class UIController {
             <button class="ai-test-button" id="ai-test-button" style="background: #17a2b8;">🔧 Test File Download</button>
             <button class="ai-rubric-button" id="ai-rubric-button" style="background: #28a745;">📝 Test Rubric</button>
             <button class="ai-comprehensive-test-button" id="ai-comprehensive-test-button" style="background: #6f42c1; margin-top: 5px;">🚀 Comprehensive Rubric Test</button>
+            <button class="ai-api-test-button" id="ai-api-test-button" style="background: #dc3545; margin-top: 5px;">🧪 Test API (Day 5)</button>
           </div>
           <div class="ai-options">
             <label class="ai-checkbox">
@@ -233,6 +234,20 @@ class UIController {
                     catch (error) {
                         console.error('UIController: Error running comprehensive rubric test', error);
                         this.showError('Failed to run comprehensive rubric test');
+                    }
+                });
+            }
+            // API testing button (Week 2 Day 5)
+            const apiTestButton = this.aiPanel.querySelector('#ai-api-test-button');
+            if (apiTestButton) {
+                apiTestButton.addEventListener('click', () => {
+                    try {
+                        console.log('🧪 UIController: API test button clicked');
+                        this.testAPI();
+                    }
+                    catch (error) {
+                        console.error('UIController: Error running API test', error);
+                        this.showError('Failed to run API test');
                     }
                 });
             }
@@ -1051,6 +1066,83 @@ class UIController {
         setTimeout(() => this.hideError(), 8000);
     }
     /**
+     * Test API functionality - Week 2 Day 5: API Testing
+     */
+    async testAPI() {
+        console.log('🧪 UIController: Starting comprehensive API testing (Day 5)...');
+        // Show progress
+        this.showProgress('Running API tests...', 0);
+        // Update button state
+        const testButton = this.aiPanel?.querySelector('#ai-api-test-button');
+        if (testButton) {
+            testButton.disabled = true;
+            testButton.textContent = '🔄 Testing API...';
+        }
+        try {
+            // Check if API testing function is available
+            const supergrader = window.supergrader;
+            if (!supergrader?.testAPI) {
+                throw new Error('API testing function not available');
+            }
+            // Run comprehensive API tests
+            this.updateProgress(50, 100, 'Executing API test suite...');
+            const results = await supergrader.testAPI();
+            if (results && results.length > 0) {
+                // Count results by status
+                const summary = results.reduce((acc, result) => {
+                    acc[result.status] = (acc[result.status] || 0) + 1;
+                    return acc;
+                }, {});
+                const successCount = summary.success || 0;
+                const failureCount = summary.failure || 0;
+                const warningCount = summary.warning || 0;
+                const infoCount = summary.info || 0;
+                console.log('🧪 UIController: API Test Results Summary:');
+                console.log(`✅ Passed: ${successCount}`);
+                console.log(`❌ Failed: ${failureCount}`);
+                console.log(`⚠️ Warnings: ${warningCount}`);
+                console.log(`ℹ️ Info: ${infoCount}`);
+                // Show appropriate message based on results
+                let message = '';
+                let messageType = 'success';
+                if (failureCount === 0 && successCount > 0) {
+                    message = `🎉 All API tests passed! ${successCount} tests successful. Check console for detailed results.`;
+                    messageType = 'success';
+                }
+                else if (failureCount > 0 && successCount > 0) {
+                    message = `⚠️ API tests completed: ${successCount} passed, ${failureCount} failed. Check console for details.`;
+                    messageType = 'info';
+                }
+                else if (failureCount > 0) {
+                    message = `❌ API tests failed: ${failureCount} errors found. Check console for troubleshooting.`;
+                    messageType = 'error';
+                }
+                else {
+                    message = `ℹ️ API tests completed: ${results.length} tests run. Check console for details.`;
+                    messageType = 'info';
+                }
+                this.hideProgress();
+                this.showError(message, messageType);
+                setTimeout(() => this.hideError(), 10000);
+            }
+            else {
+                throw new Error('No test results returned from API test suite');
+            }
+        }
+        catch (error) {
+            console.error('UIController: API testing failed:', error);
+            this.hideProgress();
+            this.showError(`❌ API testing failed: ${error.message}`);
+        }
+        finally {
+            // Reset button state
+            if (testButton) {
+                testButton.disabled = false;
+                testButton.textContent = '🧪 Test API (Day 5)';
+            }
+        }
+    }
+    /**
      * Log usage examples for developers
      */
     logUsageExamples() {
@@ -1075,6 +1167,17 @@ class UIController {
         console.log('const success = applyGrade(rubric, "12346", false); // deselect\n');
         console.log('// Manual scoring:');
         console.log('const success = applyGrade(rubric, undefined, undefined, 85.5);');
+        console.log('-'.repeat(40));
+        // Add API testing usage examples
+        console.log('\n🧪 API Testing Usage Examples (Week 2 Day 5):');
+        console.log('-'.repeat(40));
+        console.log('// Full API test suite:');
+        console.log('await supergrader.testAPI();           // Comprehensive API testing\n');
+        console.log('// Individual API tests:');
+        console.log('await supergrader.testCSRF();          // CSRF token validation only');
+        console.log('await supergrader.testRetries();       // Error handling & retries only\n');
+        console.log('// Access test data fixtures:');
+        console.log('console.log(supergrader.API_TEST_FIXTURES); // Test data and mock scenarios');
         console.log('-'.repeat(40));
     }
     /**

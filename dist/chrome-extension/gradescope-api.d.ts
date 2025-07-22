@@ -118,6 +118,12 @@ declare class GradescopeAPI {
      */
     getAuthStatus(): AuthStatus;
     /**
+     * Get current authentication state for debugging
+     */
+    getAuthState(): AuthState & {
+        csrfToken: string | null;
+    };
+    /**
      * Download and extract source files from submission ZIP
      * Implements Week 2, Day 1-2: Source code extraction
      */
@@ -261,4 +267,147 @@ declare function getRubricFromIframe(): Promise<{
 declare function applyRubricItem(itemId: number, selected: boolean): boolean;
 declare function updateAuthStatusInDOM(): void;
 declare const originalInitialize: any;
+/**
+ * API Test Result Interface
+ */
+interface APITestResult {
+    testName: string;
+    status: 'success' | 'failure' | 'warning' | 'info';
+    message: string;
+    timing?: number;
+    details?: any;
+}
+/**
+ * Test Data Fixtures for API Testing
+ */
+declare const API_TEST_FIXTURES: {
+    sampleRubricItems: {
+        id: string;
+        description: string;
+        points: number;
+    }[];
+    testTokens: {
+        valid: string;
+        invalid: string;
+        malformed: string;
+        empty: string;
+    };
+    expectedResponses: {
+        success: {
+            status: number;
+            ok: boolean;
+        };
+        unauthorized: {
+            status: number;
+            ok: boolean;
+        };
+        forbidden: {
+            status: number;
+            ok: boolean;
+        };
+        csrfError: {
+            status: number;
+            ok: boolean;
+        };
+        rateLimited: {
+            status: number;
+            ok: boolean;
+        };
+        serverError: {
+            status: number;
+            ok: boolean;
+        };
+    };
+    testIds: {
+        courseId: string;
+        assignmentId: string;
+        questionId: string;
+        submissionId: string;
+    };
+};
+/**
+ * Comprehensive API Testing Class - Week 2 Day 5
+ */
+declare class APITester {
+    private gradescopeAPI;
+    private testResults;
+    constructor(api: GradescopeAPI);
+    /**
+     * Main test runner for all API tests
+     */
+    runAllTests(): Promise<APITestResult[]>;
+    /**
+     * Test 1: CSRF Token Validation - Week 2 Day 5 Requirement
+     */
+    testCSRFTokenValidation(): Promise<void>;
+    /**
+     * Test CSRF token inclusion in API requests
+     */
+    private testCSRFInHeaders;
+    /**
+     * Test 2: Rubric Item Toggle Endpoint Testing - Week 2 Day 5 Requirement
+     */
+    private testRubricItemToggleEndpoint;
+    /**
+     * Test PUT request structure for rubric item toggling
+     */
+    private testPUTRequestStructure;
+    /**
+     * Test 3: Error Handling and Retries - Week 2 Day 5 Requirement
+     */
+    testErrorHandlingAndRetries(): Promise<void>;
+    /**
+     * Test retry mechanism with exponential backoff
+     */
+    private testRetryMechanism;
+    /**
+     * Test error response handling for different HTTP status codes
+     */
+    private testErrorResponseHandling;
+    /**
+     * Mock error handler for testing
+     */
+    private handleMockAPIError;
+    /**
+     * Test timeout handling
+     */
+    private testTimeoutHandling;
+    /**
+     * Test 4: Rate Limiting Behavior
+     */
+    private testRateLimiting;
+    /**
+     * Simulate API request for rate limiting test
+     */
+    private simulateAPIRequest;
+    /**
+     * Test 5: Authentication Edge Cases
+     */
+    private testAuthenticationEdgeCases;
+    /**
+     * Test 6: Network Failure Recovery
+     */
+    private testNetworkFailureRecovery;
+    /**
+     * Extract page context for testing
+     */
+    private extractPageContext;
+    /**
+     * Add test result to results array
+     */
+    private addResult;
+    /**
+     * Print comprehensive test summary
+     */
+    private printTestSummary;
+    /**
+     * Get test results for UI display
+     */
+    getTestResults(): APITestResult[];
+}
+declare let globalAPITester: APITester | null;
+/**
+ * Initialize global API testing interface - Week 2 Day 5
+ */
+declare function initializeAPITesting(): void;
 //# sourceMappingURL=gradescope-api.d.ts.map
