@@ -713,8 +713,71 @@ class GradescopeAPI {
     isRubricItemSelected(element) {
         if (!element)
             return false;
+        // Old Gradescope interface with actual input elements
         const input = element.querySelector('input[type="checkbox"], input[type="radio"]');
-        return input ? input.checked : false;
+        if (input) {
+            return input.checked;
+        }
+        // New Gradescope interface with CSS classes
+        // Check for applied state in regular rubric items
+        const keyButton = element.querySelector('.rubricItem--key');
+        if (keyButton && keyButton.classList.contains('rubricItem--key-applied')) {
+            return true;
+        }
+        // Check for applied state in rubric groups (multiple possible class names)
+        const groupKeyButton = element.querySelector('.rubricItemGroup--key');
+        if (groupKeyButton && (groupKeyButton.classList.contains('rubricItemGroup--key-is-applied') ||
+            groupKeyButton.classList.contains('rubricItemGroup--key-applied'))) {
+            return true;
+        }
+        // For radio groups, check if any child option is selected
+        if (element.classList.contains('rubricItemGroup')) {
+            // Look for selected options within the group
+            const selectedOption = element.querySelector('.rubricItem--key-applied');
+            if (selectedOption) {
+                return true;
+            }
+            // Alternative selection indicators
+            const appliedItems = element.querySelectorAll('.rubricItem--applied, .selected, .rubricItem.applied');
+            if (appliedItems.length > 0) {
+                return true;
+            }
+        }
+        // Additional fallback checks
+        if (element.classList.contains('rubricItem--applied') ||
+            element.classList.contains('selected') ||
+            element.classList.contains('applied')) {
+            return true;
+        }
+        // Check for visual indicators (like checked icons, highlighted backgrounds, etc.)
+        const visualIndicators = element.querySelectorAll('.fa-check, .checkmark, [class*="checked"], [class*="selected"]');
+        if (visualIndicators.length > 0) {
+            return true;
+        }
+        return false;
+    }
+    /**
+     * Debug method to inspect selection state of a specific element
+     */
+    debugElementSelection(element) {
+        console.log('🔍 Debug Element Selection:', element);
+        console.log('Element classes:', element.className);
+        const selectionChecks = {
+            hasInput: !!element.querySelector('input[type="checkbox"], input[type="radio"]'),
+            inputChecked: element.querySelector('input[type="checkbox"], input[type="radio"]')?.checked,
+            hasKeyApplied: !!element.querySelector('.rubricItem--key-applied'),
+            hasGroupKeyApplied: !!element.querySelector('.rubricItemGroup--key-is-applied, .rubricItemGroup--key-applied'),
+            hasAppliedClass: element.classList.contains('rubricItem--applied') || element.classList.contains('applied'),
+            hasSelectedClass: element.classList.contains('selected'),
+            hasVisualIndicators: element.querySelectorAll('.fa-check, .checkmark, [class*="checked"], [class*="selected"]').length > 0,
+            // For radio groups specifically
+            isRadioGroup: element.classList.contains('rubricItemGroup'),
+            hasSelectedChild: !!element.querySelector('.rubricItem--key-applied'),
+            hasAppliedChild: !!element.querySelector('.rubricItem--applied')
+        };
+        console.log('Selection indicators:', selectionChecks);
+        console.log('Final result from isRubricItemSelected():', this.isRubricItemSelected(element));
+        return selectionChecks;
     }
     /**
      * Toggle a rubric item - Week 2 Day 3-4 Implementation
@@ -1089,6 +1152,7 @@ function getRubric() {
     if (domItems.length) {
         const items = [];
         let hasRadio = false;
+        let hasCheckbox = false;
         domItems.forEach((element, index) => {
             // Handle both old and new Gradescope interfaces
             let itemId = element.dataset.rubricItemId;
@@ -1104,18 +1168,66 @@ function getRubric() {
                     // Get the main group description (like "encoder Design")
                     const groupDescElement = element.querySelector('.rubricField-description');
                     const groupDesc = groupDescElement?.textContent?.trim();
-                    // Find all available options in this group
-                    const summaryElement = element.querySelector('.rubricItemGroupSummary');
-                    const summaryDesc = summaryElement?.querySelector('.rubricItemGroupSummary--description--widthContainer')?.textContent?.trim();
-                    // Get the currently selected option's points
-                    const summaryPoints = summaryElement?.querySelector('.rubricItemGroupSummary--points')?.textContent?.trim();
-                    const summaryPointValue = summaryPoints ? parseFloat(summaryPoints.replace(/[^\d.-]/g, '')) || 0 : 0;
-                    // Build description showing this is a radio group with options
-                    description = `${groupDesc || 'Radio Group'} (Select one option)`;
-                    if (summaryDesc) {
-                        description += ` - Currently selected: "${summaryDesc}" (${summaryPointValue} pts)`;
+                    // Find ALL available options in this group (not just selected)
+                    const allOptions = [];
+                    let selectedOption = '';
+                    let selectedPoints = 0;
+                    // Look for the rubricItemGroup--rubricItems container that has all options
+                    const optionsContainer = element.querySelector('.rubricItemGroup--rubricItems');
+                    if (optionsContainer) {
+                        // Find all individual rubric items within this group
+                        const optionItems = optionsContainer.querySelectorAll('.rubricItem');
+                        optionItems.forEach((optionElement) => {
+                            const optionDesc = optionElement.querySelector('.rubricField-description')?.textContent?.trim();
+                            const optionPoints = optionElement.querySelector('.rubricField-points')?.textContent?.trim();
+                            const optionPointValue = optionPoints ? parseFloat(optionPoints.replace(/[^\d.-]/g, '')) || 0 : 0;
+                            if (optionDesc) {
+                                const optionText = `"${optionDesc}" (${optionPointValue} pts)`;
+                                allOptions.push(optionText);
+                                // Check if this option is selected (multiple ways to detect)
+                                const optionKey = optionElement.querySelector('.rubricItem--key');
+                                const isApplied = optionKey && optionKey.classList.contains('rubricItem--key-applied');
+                                // Also check for other selection indicators
+                                const isSelected = isApplied ||
+                                    optionElement.classList.contains('rubricItem--applied') ||
+                                    optionElement.classList.contains('selected') ||
+                                    optionElement.querySelector('.selected') !== null;
+                                if (isSelected) {
+                                    selectedOption = optionDesc;
+                                    selectedPoints = optionPointValue;
+                                }
+                            }
+                        });
                     }
-                    points = summaryPointValue;
+                    // Alternative: look directly in the main element for options if container not found
+                    if (allOptions.length === 0) {
+                        const directOptions = element.querySelectorAll('.rubricItem');
+                        directOptions.forEach((optionElement) => {
+                            const optionDesc = optionElement.querySelector('.rubricField-description')?.textContent?.trim();
+                            const optionPoints = optionElement.querySelector('.rubricField-points')?.textContent?.trim();
+                            const optionPointValue = optionPoints ? parseFloat(optionPoints.replace(/[^\d.-]/g, '')) || 0 : 0;
+                            if (optionDesc && optionDesc !== groupDesc) { // Avoid duplicating the main group description
+                                const optionText = `"${optionDesc}" (${optionPointValue} pts)`;
+                                allOptions.push(optionText);
+                                // Check if this option is selected
+                                const optionKey = optionElement.querySelector('.rubricItem--key');
+                                const isApplied = optionKey && optionKey.classList.contains('rubricItem--key-applied');
+                                if (isApplied || optionElement.classList.contains('rubricItem--applied')) {
+                                    selectedOption = optionDesc;
+                                    selectedPoints = optionPointValue;
+                                }
+                            }
+                        });
+                    }
+                    // Build description showing this is a radio group with ALL options
+                    description = `${groupDesc || 'Radio Group'} (Select one option)`;
+                    if (allOptions.length > 0) {
+                        description += `\n  Available options:\n  - ${allOptions.join('\n  - ')}`;
+                    }
+                    if (selectedOption) {
+                        description += `\n  Currently selected: "${selectedOption}" (${selectedPoints} pts)`;
+                    }
+                    points = selectedPoints;
                     hasRadio = true; // This is definitely a radio-style group
                 }
                 else {
@@ -1129,23 +1241,48 @@ function getRubric() {
                     const pointsElement = element.querySelector('.rubricField-points, .rubricField.rubricField-points');
                     pointsText = pointsElement?.textContent?.trim();
                     points = pointsText ? parseFloat(pointsText.replace(/[^\d.-]/g, '')) || 0 : 0;
+                    hasCheckbox = true; // This is a regular checkbox-style item
                 }
             }
-            // Check for radio buttons or applied state
-            if (element.querySelector('input[type="radio"]') || element.classList.contains('rubricItemGroup')) {
-                hasRadio = true;
-            }
+            // Note: Individual radio/checkbox detection is handled above per item type
             if (itemId && description) {
+                // Add item type information
+                const itemType = element.classList.contains('rubricItemGroup') ? 'RADIO' : 'CHECKBOX';
                 items.push({
                     id: itemId,
                     description: description || '',
                     points,
-                    element
+                    element,
+                    itemType // Add type info to each item
                 });
             }
         });
-        const rubricStyle = hasRadio ? 'RADIO' : 'CHECKBOX';
+        // Determine overall rubric style
+        let rubricStyle;
+        if (hasRadio && hasCheckbox) {
+            rubricStyle = 'MIXED';
+        }
+        else if (hasRadio) {
+            rubricStyle = 'RADIO';
+        }
+        else {
+            rubricStyle = 'CHECKBOX';
+        }
         console.log(`📝 Found ${items.length} rubric items via DOM selectors`);
+        // Add debugging information for each item
+        items.forEach(item => {
+            console.log(`  Item ${item.id}: "${item.description?.split('\n')[0]}" (${item.points} pts, type: ${item.itemType})`);
+            if (item.element) {
+                // Log selection state debugging
+                const hasInput = item.element.querySelector('input[type="checkbox"], input[type="radio"]');
+                const hasKeyApplied = item.element.querySelector('.rubricItem--key-applied');
+                const hasGroupKeyApplied = item.element.querySelector('.rubricItemGroup--key-is-applied, .rubricItemGroup--key-applied');
+                console.log(`    Debug - hasInput: ${!!hasInput}, hasKeyApplied: ${!!hasKeyApplied}, hasGroupKeyApplied: ${!!hasGroupKeyApplied}`);
+                if (hasInput) {
+                    console.log(`    Input checked state: ${hasInput.checked}`);
+                }
+            }
+        });
         return { type: 'structured', items, rubricStyle };
     }
     // 2-d. Detect manual-scoring single box
@@ -2123,10 +2260,109 @@ function initializeAPITesting() {
         }
         console.log('='.repeat(60));
         console.log('💡 TIP: Run this on a Gradescope grading page to see actual rubric content');
+        // Run additional debugging tests when showing rubric data
+        console.log('\n🔬 RUNNING ADDITIONAL DEBUGGING TESTS...\n');
+        // Run selection state debugging
+        if (typeof window.supergrader.debugSelection === 'function') {
+            try {
+                window.supergrader.debugSelection();
+            }
+            catch (error) {
+                console.error('Failed to run selection debugging:', error);
+            }
+        }
+        // Run radio options debugging
+        if (typeof window.supergrader.debugRadioOptions === 'function') {
+            try {
+                window.supergrader.debugRadioOptions();
+            }
+            catch (error) {
+                console.error('Failed to run radio options debugging:', error);
+            }
+        }
+        console.log('✅ RUBRIC DEBUGGING COMPLETE - All available tests have been run!');
+    };
+    // Add debug functions for investigating selection issues
+    window.supergrader.debugSelection = () => {
+        console.log('🔍 SELECTION STATE DEBUGGING:');
+        console.log('='.repeat(60));
+        const rubricResult = getRubric();
+        if (!rubricResult || rubricResult.type !== 'structured') {
+            console.log('❌ No structured rubric found');
+            return;
+        }
+        console.log(`Found ${rubricResult.items.length} items, checking each for selection state:`);
+        rubricResult.items.forEach((item, index) => {
+            console.log(`\n${index + 1}. Item ID: ${item.id}`);
+            console.log(`   Description: ${item.description?.split('\n')[0]}`);
+            console.log(`   Points: ${item.points}`);
+            console.log(`   Type: ${item.itemType}`);
+            if (item.element) {
+                // Call the debug method on the API instance
+                const api = window.GradescopeAPI;
+                if (api && typeof api.debugElementSelection === 'function') {
+                    api.debugElementSelection(item.element);
+                }
+                else {
+                    // Fallback debugging
+                    const hasInput = item.element.querySelector('input');
+                    const hasApplied = item.element.querySelector('[class*="applied"]');
+                    console.log(`   Has input: ${!!hasInput}`);
+                    if (hasInput)
+                        console.log(`   Input checked: ${hasInput.checked}`);
+                    console.log(`   Has applied class: ${!!hasApplied}`);
+                }
+            }
+            else {
+                console.log('   ⚠️ No DOM element found for this item');
+            }
+        });
+        console.log('='.repeat(60));
+    };
+    window.supergrader.debugRadioOptions = () => {
+        console.log('📻 RADIO BUTTON OPTIONS DEBUGGING:');
+        console.log('='.repeat(60));
+        const root = getInnerDoc();
+        const radioGroups = root.querySelectorAll('.rubricItemGroup');
+        console.log(`Found ${radioGroups.length} radio groups on page`);
+        radioGroups.forEach((group, index) => {
+            console.log(`\nGroup ${index + 1}:`);
+            console.log('  Element:', group);
+            console.log('  Classes:', group.className);
+            // Check for group description
+            const groupDesc = group.querySelector('.rubricField-description')?.textContent?.trim();
+            console.log('  Group description:', groupDesc);
+            // Look for options container
+            const optionsContainer = group.querySelector('.rubricItemGroup--rubricItems');
+            console.log('  Has options container:', !!optionsContainer);
+            if (optionsContainer) {
+                const options = optionsContainer.querySelectorAll('.rubricItem');
+                console.log(`  Options found: ${options.length}`);
+                options.forEach((option, optIndex) => {
+                    const optionDesc = option.querySelector('.rubricField-description')?.textContent?.trim();
+                    const optionPoints = option.querySelector('.rubricField-points')?.textContent?.trim();
+                    const isApplied = option.querySelector('.rubricItem--key-applied');
+                    console.log(`    Option ${optIndex + 1}: "${optionDesc}" (${optionPoints})`);
+                    console.log(`      Applied: ${!!isApplied}`);
+                });
+            }
+            else {
+                // Look for direct child options
+                const directOptions = group.querySelectorAll('.rubricItem');
+                console.log(`  Direct child options: ${directOptions.length}`);
+                directOptions.forEach((option, optIndex) => {
+                    const optionDesc = option.querySelector('.rubricField-description')?.textContent?.trim();
+                    console.log(`    Direct option ${optIndex + 1}: "${optionDesc}"`);
+                });
+            }
+        });
+        console.log('='.repeat(60));
     };
     console.log('🧪 API testing functions initialized');
     console.log('💡 Quick commands:');
     console.log('   supergrader.showRubricData() - Show actual rubric content');
+    console.log('   supergrader.debugSelection() - Debug selection detection issues');
+    console.log('   supergrader.debugRadioOptions() - Debug radio button option extraction');
     console.log('   supergrader.testAPI() - Full API test suite');
 }
 // Initialize API testing when script loads

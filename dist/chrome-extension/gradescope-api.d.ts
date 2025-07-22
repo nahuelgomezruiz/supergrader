@@ -199,6 +199,10 @@ declare class GradescopeAPI {
      */
     private isRubricItemSelected;
     /**
+     * Debug method to inspect selection state of a specific element
+     */
+    debugElementSelection(element: HTMLElement): any;
+    /**
      * Toggle a rubric item - Week 2 Day 3-4 Implementation
      */
     toggleRubricItem(_questionId: string, rubricItemId: string, _points: number, _description: string): Promise<{
@@ -226,11 +230,12 @@ interface RubricItem {
     description?: string;
     points?: number;
     element?: HTMLElement;
+    itemType?: 'CHECKBOX' | 'RADIO';
 }
 interface StructuredRubric {
     type: 'structured';
     items: RubricItem[];
-    rubricStyle: 'CHECKBOX' | 'RADIO';
+    rubricStyle: 'CHECKBOX' | 'RADIO' | 'MIXED';
 }
 interface ManualRubric {
     type: 'manual';
@@ -254,7 +259,7 @@ declare function getRubricFromIframe(): Promise<{
         text: string;
         points: number;
     }>;
-    rubricStyle: "RADIO" | "CHECKBOX";
+    rubricStyle: "RADIO" | "CHECKBOX" | "MIXED";
     pointsDistribution: {
         positive: number;
         negative: number;
