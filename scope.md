@@ -26,24 +26,35 @@ _Last updated: 2025-01-27_
   "manifest_version": 3,
   "name": "supergrader",
   "version": "1.0",
+  "description": "AI-powered grading assistant for Gradescope assignments",
   "permissions": ["storage", "cookies", "scripting", "activeTab"],
   "host_permissions": ["https://www.gradescope.com/*"],
   "content_scripts": [{
-    "matches": ["https://www.gradescope.com/courses/*/assignments/*/submissions/*/grade"],
-    "js": ["content.js", "gradescope-api.js", "ui-controller.js"],
+    "matches": [
+      "https://www.gradescope.com/courses/*/assignments/*/submissions/*/grade",
+      "https://www.gradescope.com/courses/*/questions/*/submissions/*/grade"
+    ],
+    "js": ["jszip.min.js", "content.js", "gradescope-api.js", "ui-controller.js"],
     "css": ["styles.css"],
     "run_at": "document_idle"
   }],
   "background": {
     "service_worker": "background.js"
   },
+  "web_accessible_resources": [{
+    "resources": ["gradescope/*.js"],
+    "matches": ["<all_urls>"]
+  }],
   "action": {
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_title": "supergrader"
   }
 }
 ```
 
 ### 2.2 Core Extension Files
+
+> Note: The core extension source files are written in TypeScript (`src/chrome-extension/*.ts`) and are compiled to JavaScript (`chrome-extension/*.js`) during the build process.
 
 #### **content.js** - Main orchestrator
 - Detects when user is on grading page
@@ -91,21 +102,27 @@ async function extractSubmissionData(submissionId) {
 ```javascript
 function extractRubricStructure() {
   const rubricItems = [];
-  document.querySelectorAll('.rubric-item[data-rubric-item-id]').forEach(item => {
-    const itemId = item.dataset.rubricItemId;
-    const description = item.querySelector('.rubric-description').textContent;
-    const points = parseFloat(item.querySelector('.points').textContent);
-    const category = item.closest('.question-section').dataset.questionId;
-    
+  // Supports both checkbox and radio (accordion) rubric styles
+  document.querySelectorAll('.rubricItem, .rubricItemGroup').forEach(item => {
+    const keyEl = item.querySelector('.rubricItem--key, .rubricItemGroup--key');
+    const itemId = keyEl?.textContent?.trim();
+
+    const descEl = item.querySelector('.rubricField-description, .rubricField.rubricField-description');
+    const pointsEl = item.querySelector('.rubricField-points, .rubricField.rubricField-points');
+
+    const description = descEl?.textContent?.trim() ?? '';
+    const points = parseFloat((pointsEl?.textContent || '0').replace(/[^\d.-]/g, '')) || 0;
+
+    const selected = keyEl?.classList.contains('rubricItem--key-applied') || keyEl?.getAttribute('aria-pressed') === 'true';
+
     rubricItems.push({
       id: itemId,
-      description: description.trim(),
+      description,
       points,
-      category,
-      currentlySelected: item.querySelector('input').checked
+      selected
     });
   });
-  
+
   return rubricItems;
 }
 ```
@@ -376,7 +393,7 @@ def evaluate_ai_performance(assignment_id, ai_decisions, human_decisions):
 
 **Specific Tasks:**
 1. **Day 1-2: API Server Setup**
-   - Initialize Node.js/Express or Python/FastAPI backend
+   - Initialize Python/FastAPI backend
    - Create `/api/grade-submission` endpoint
    - Implement request validation and sanitization
    - Set up environment configuration for OpenAI API
