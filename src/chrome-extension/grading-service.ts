@@ -417,6 +417,18 @@ class ChromeGradingService {
     return backendItems;
   }
 
+  private isTestFile(filePath: string): boolean {
+    const lower = filePath.toLowerCase();
+    // Core source files we do NOT treat as tests
+    if (lower.endsWith('.cpp') || lower.endsWith('.h')) return false;
+
+    const baseName = lower.split('/').pop() || lower;
+    if (baseName === 'makefile' || baseName.startsWith('readme')) return false;
+
+    // Everything else is considered a test/auxiliary file
+    return true;
+  }
+
   /**
    * Grade submission using the backend API
    */
@@ -465,7 +477,15 @@ class ChromeGradingService {
     const request: GradingRequest = {
       assignment_context: context,
       source_files: Object.fromEntries(
-        Object.entries(downloadResult.files).map(([path, file]: [string, any]) => [path, file.content])
+        Object.entries(downloadResult.files).map(([path, file]: [string, any]) => {
+          let content: string = file.content;
+          if (this.isTestFile(path) && typeof content === 'string') {
+            if (content.length > 100) {
+              content = content.slice(0, 100) + '[TRIMMED]';
+            }
+          }
+          return [path, content];
+        })
       ),
       rubric_items: backendRubricItems
     };

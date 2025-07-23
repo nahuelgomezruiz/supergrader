@@ -34,6 +34,7 @@ export declare class GradingService {
      * Convert rubric items to backend format
      */
     private convertRubricToBackendFormat;
+    private isTestFile;
     /**
      * Grade submission using the backend API
      */

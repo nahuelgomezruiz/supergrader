@@ -166,6 +166,14 @@ export class GradingService {
     return backendItems;
   }
 
+  private isTestFile(filePath: string): boolean {
+    const lower = filePath.toLowerCase();
+    if (lower.endsWith('.cpp') || lower.endsWith('.h')) return false;
+    const baseName = lower.split('/').pop() || lower;
+    if (baseName === 'makefile' || baseName.startsWith('readme')) return false;
+    return true;
+  }
+
   /**
    * Grade submission using the backend API
    */
@@ -210,7 +218,15 @@ export class GradingService {
     const request: GradingRequest = {
       assignment_context: context,
       source_files: Object.fromEntries(
-        Object.entries(downloadResult.files).map(([path, file]) => [path, file.content])
+        Object.entries(downloadResult.files).map(([path, file]) => {
+          let content: string = file.content;
+          if (this.isTestFile(path) && typeof content === 'string') {
+            if (content.length > 100) {
+              content = content.slice(0, 100) + '[TRIMMED]';
+            }
+          }
+          return [path, content];
+        })
       ),
       rubric_items: backendRubricItems
     };

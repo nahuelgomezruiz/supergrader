@@ -63,6 +63,7 @@ declare class ChromeGradingService {
      * Convert rubric items to backend format
      */
     private convertRubricToBackendFormat;
+    private isTestFile;
     /**
      * Grade submission using the backend API
      */

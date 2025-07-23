@@ -407,8 +407,24 @@ class GradescopeAPI {
      * Check if text looks like a valid filename
      */
     isValidFileName(text) {
-        return Boolean(text && text.length < 100 &&
-            /\.(cpp|h|py|java|js|ts|txt|c|cs|rb|php|go|rs|swift|kt|scala|pl|sh|r|m|sql|html|css|xml|json|yaml|yml|md|rst|makefile)$/i.test(text));
+        if (!text || text.length > 200)
+            return false;
+        // Basic filename validation - avoid obvious non-files
+        const cleaned = text.trim().replace(/^[▼▶\s]*/, '');
+        if (cleaned.length === 0)
+            return false;
+        // Skip obvious UI elements or non-file text
+        const invalidPatterns = [
+            /^(download|click|button|link|file|expand|collapse|show|hide)$/i,
+            /\s+(download|click|button|link)\s+/i,
+            /^https?:\/\//,
+            /^\d+\s*(bytes?|kb|mb|gb)$/i
+        ];
+        if (invalidPatterns.some(pattern => pattern.test(cleaned))) {
+            return false;
+        }
+        // Accept anything that looks like a filename (with or without extension)
+        return true;
     }
     /**
      * Detect non-programming submission types
@@ -546,20 +562,22 @@ class GradescopeAPI {
         return name.replace(/^\s*[▼▶]\s*/, '').replace(/\s*Download\s*$/, '').trim();
     }
     shouldProcessFile(fileName, metadata) {
-        if (!fileName || fileName.length > 100 || fileName.includes('Download')) {
+        if (!fileName || fileName.length > 200) {
             metadata.skippedFiles++;
             return false;
         }
         const extension = fileName.match(/(\.[^.]+)$/)?.[1]?.toLowerCase();
-        const supportedExts = ['.cpp', '.h', '.py', '.java', '.js', '.ts', '.c', '.cs', '.rb', '.php', '.txt', '.md'];
-        const isSupported = supportedExts.includes(extension || '') || fileName.toLowerCase().includes('makefile');
-        if (extension)
+        if (extension) {
             metadata.fileTypes[extension] = (metadata.fileTypes[extension] || 0) + 1;
-        if (!isSupported) {
-            console.log(`⚠️ Skipping unsupported: ${fileName}`);
+        }
+        // Skip common binary / archive formats ‑ they won't be useful for grading text.
+        const binaryPattern = /\.(zip|rar|7z|gz|tar|bz2|exe|bin|dll|so|o|obj|class)$/;
+        if (extension && binaryPattern.test(extension)) {
+            console.log(`⚠️ Skipping binary file: ${fileName}`);
             metadata.skippedFiles++;
             return false;
         }
+        // Otherwise keep the file (it may be a test or text file)
         return true;
     }
     updateMetadata(metadata, fileName, content) {
