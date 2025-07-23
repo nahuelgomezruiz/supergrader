@@ -1,3 +1,5 @@
+declare const JSZip: any;
+declare function fetchRubricMap(courseId: number, assignmentId: number): Promise<any>;
 interface AuthState {
     isAuthenticated: boolean;
     csrfTokenValid: boolean;

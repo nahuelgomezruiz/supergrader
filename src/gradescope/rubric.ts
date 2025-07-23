@@ -4,7 +4,7 @@ interface Question {
   parent_id: number | null;
 }
 
-interface RubricItem {
+interface RubricItemData {
   id: number;
   description: string;
   points: number;
@@ -12,7 +12,7 @@ interface RubricItem {
 
 interface RubricItemsResponse {
   select_one?: boolean;
-  rubric_items: RubricItem[];
+  rubric_items: RubricItemData[];
 }
 
 interface QuestionData {
@@ -38,7 +38,7 @@ interface CachedRubricData {
  * @param assignmentId - The Gradescope assignment ID
  * @returns Promise resolving to the rubric map with questions and reverse lookup
  */
-export async function fetchRubricMap(courseId: number, assignmentId: number): Promise<RubricMap> {
+async function fetchRubricMap(courseId: number, assignmentId: number): Promise<RubricMap> {
   const cacheKey = `rubric:${assignmentId}`;
   const cacheExpirationMs = 12 * 60 * 60 * 1000; // 12 hours
   

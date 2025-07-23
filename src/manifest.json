@@ -10,7 +10,7 @@
       "https://www.gradescope.com/courses/*/assignments/*/submissions/*/grade",
       "https://www.gradescope.com/courses/*/questions/*/submissions/*/grade"
     ],
-    "js": ["chrome-extension/jszip.min.js", "chrome-extension/content.js", "chrome-extension/gradescope-api.js", "chrome-extension/ui-controller.js"],
+    "js": ["chrome-extension/jszip.min.js", "gradescope/rubric.js", "chrome-extension/content.js", "chrome-extension/gradescope-api.js", "chrome-extension/ui-controller.js"],
     "css": ["chrome-extension/styles.css"],
     "run_at": "document_idle"
   }],

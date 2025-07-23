@@ -1,10 +1,11 @@
+"use strict";
 /**
  * Fetches and parses the complete rubric structure for a Gradescope assignment
  * @param courseId - The Gradescope course ID
  * @param assignmentId - The Gradescope assignment ID
  * @returns Promise resolving to the rubric map with questions and reverse lookup
  */
-export async function fetchRubricMap(courseId, assignmentId) {
+async function fetchRubricMap(courseId, assignmentId) {
     const cacheKey = `rubric:${assignmentId}`;
     const cacheExpirationMs = 12 * 60 * 60 * 1000; // 12 hours
     // Check cache first

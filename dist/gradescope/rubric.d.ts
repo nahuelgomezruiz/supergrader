@@ -1,3 +1,17 @@
+interface Question {
+    id: number;
+    name: string;
+    parent_id: number | null;
+}
+interface RubricItemData {
+    id: number;
+    description: string;
+    points: number;
+}
+interface RubricItemsResponse {
+    select_one?: boolean;
+    rubric_items: RubricItemData[];
+}
 interface QuestionData {
     name: string;
     parentId: number | null;
@@ -16,12 +30,24 @@ interface RubricMap {
         [rubricItemId: number]: number;
     };
 }
+interface CachedRubricData {
+    data: RubricMap;
+    updatedAt: number;
+}
 /**
- * Fetches and parses the complete rubric structure for a Gradescope assignment
- * @param courseId - The Gradescope course ID
- * @param assignmentId - The Gradescope assignment ID
- * @returns Promise resolving to the rubric map with questions and reverse lookup
+ * Retrieves cached rubric data from chrome.storage.local
  */
-export declare function fetchRubricMap(courseId: number, assignmentId: number): Promise<RubricMap>;
-export {};
+declare function getCachedRubric(cacheKey: string): Promise<CachedRubricData | null>;
+/**
+ * Stores rubric data in chrome.storage.local
+ */
+declare function setCachedRubric(cacheKey: string, data: RubricMap): Promise<void>;
+/**
+ * Fetches fresh rubric data from Gradescope APIs
+ */
+declare function fetchFreshRubricData(courseId: number, assignmentId: number): Promise<RubricMap>;
+/**
+ * Fetches rubric items for a specific question
+ */
+declare function fetchQuestionRubricItems(courseId: number, questionId: number): Promise<RubricItemsResponse>;
 //# sourceMappingURL=rubric.d.ts.map

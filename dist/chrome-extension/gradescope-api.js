@@ -1,7 +1,6 @@
 "use strict";
 // Gradescope API integration module
 // Handles authentication, data extraction, and grading actions
-console.log('supergrader: Gradescope API module loaded');
 /**
  * Enhanced Gradescope API wrapper class with robust authentication
  */
@@ -29,7 +28,6 @@ class GradescopeAPI {
      * Enhanced authentication initialization with validation and testing
      */
     async initialize() {
-        console.log('GradescopeAPI: Starting enhanced authentication...');
         try {
             // Step 1: Extract and validate CSRF token
             const csrfSuccess = await this.extractAndValidateCSRF();
@@ -49,11 +47,6 @@ class GradescopeAPI {
             // Step 4: Mark as authenticated
             this.authState.isAuthenticated = true;
             this.authState.lastValidated = Date.now();
-            console.log('GradescopeAPI: Enhanced authentication successful', {
-                csrfToken: this.csrfToken ? 'present' : 'missing',
-                sessionValid: this.authState.sessionValid,
-                timestamp: new Date().toISOString()
-            });
             return true;
         }
         catch (error) {
@@ -65,7 +58,6 @@ class GradescopeAPI {
      * Extract and validate CSRF token
      */
     async extractAndValidateCSRF() {
-        console.log('GradescopeAPI: Extracting CSRF token...');
         // Primary method: meta tag
         let csrfMeta = document.querySelector('meta[name="csrf-token"]');
         // Fallback methods for different CSRF token locations
@@ -79,7 +71,6 @@ class GradescopeAPI {
                 csrfMeta.value;
             if (this.csrfToken && this.csrfToken.length > 10) {
                 this.authState.csrfTokenValid = true;
-                console.log('GradescopeAPI: CSRF token extracted and validated');
                 return true;
             }
             else {
@@ -89,7 +80,6 @@ class GradescopeAPI {
         }
         else {
             console.error('GradescopeAPI: No CSRF token meta tag found in DOM');
-            console.log('GradescopeAPI: Available meta tags:', Array.from(document.querySelectorAll('meta')).map(m => m.name || m.property).filter(Boolean));
             return false;
         }
     }
@@ -97,10 +87,8 @@ class GradescopeAPI {
      * Validate session cookies and authentication state
      */
     async validateSession() {
-        console.log('GradescopeAPI: Validating session...');
         const cookies = document.cookie;
         const cookieNames = cookies.split(';').map(c => c.trim().split('=')[0]);
-        console.log('GradescopeAPI: Available cookies:', cookieNames);
         // Check for Gradescope session cookies (multiple possible names)
         const sessionCookiePatterns = [
             '__Host-gradescope_session',
@@ -112,7 +100,6 @@ class GradescopeAPI {
         const foundSessionCookie = sessionCookiePatterns.find(pattern => cookieNames.some(name => name.includes(pattern.replace('__Host-', ''))));
         if (foundSessionCookie) {
             this.authState.sessionValid = true;
-            console.log('GradescopeAPI: Session cookie found:', foundSessionCookie);
         }
         else {
             this.authState.sessionValid = false;
@@ -128,7 +115,6 @@ class GradescopeAPI {
         ];
         const userLoggedIn = userIndicators.some(selector => document.querySelector(selector));
         if (userLoggedIn) {
-            console.log('GradescopeAPI: User appears to be logged in (found UI indicators)');
             this.authState.sessionValid = true;
         }
         else {
@@ -140,7 +126,6 @@ class GradescopeAPI {
      * Test authentication by making a safe API call
      */
     async testAuthentication() {
-        console.log('GradescopeAPI: Testing authentication with safe API call...');
         if (!this.csrfToken) {
             console.warn('GradescopeAPI: Cannot test authentication without CSRF token');
             return false;
@@ -157,7 +142,6 @@ class GradescopeAPI {
                 }
             });
             if (response.ok) {
-                console.log('GradescopeAPI: Authentication test passed');
                 return true;
             }
             else if (response.status === 401 || response.status === 403) {
@@ -183,11 +167,9 @@ class GradescopeAPI {
         this.authState.isAuthenticated = false;
         this.authState.retryCount++;
         if (this.authState.retryCount < this.authState.maxRetries) {
-            console.log(`GradescopeAPI: Will attempt authentication recovery (attempt ${this.authState.retryCount}/${this.authState.maxRetries})`);
             // Schedule retry with exponential backoff
             const retryDelay = Math.pow(2, this.authState.retryCount) * 1000;
             setTimeout(() => {
-                console.log('GradescopeAPI: Retrying authentication...');
                 this.initialize();
             }, retryDelay);
         }
@@ -227,7 +209,6 @@ class GradescopeAPI {
         // Check if authentication is stale (older than 1 hour)
         const oneHour = 60 * 60 * 1000;
         if (this.authState.lastValidated && (Date.now() - this.authState.lastValidated) > oneHour) {
-            console.log('GradescopeAPI: Authentication may be stale, re-validating...');
             this.initialize(); // Re-validate in background
             return true; // Assume still valid for now
         }
@@ -237,7 +218,6 @@ class GradescopeAPI {
      * Make authenticated API request with rate limiting and error handling
      */
     async makeAuthenticatedRequest(url, options = {}) {
-        console.log(`GradescopeAPI: Making authenticated request to ${url}`);
         // Check authentication first
         if (!this.isAuthenticated()) {
             throw new Error('Not authenticated');
@@ -279,7 +259,6 @@ class GradescopeAPI {
                 this.initialize(); // Re-get CSRF token
                 throw new Error('CSRF token invalid');
             }
-            console.log(`GradescopeAPI: Request successful, status: ${response.status}`);
             return response;
         }
         finally {
@@ -314,7 +293,6 @@ class GradescopeAPI {
      * Implements Week 2, Day 1-2: Source code extraction
      */
     async downloadSubmissionFiles(submissionId) {
-        console.log(`GradescopeAPI: Downloading files for submission ${submissionId}`);
         if (!submissionId || !this.isAuthenticated()) {
             throw new Error(!submissionId ? 'Submission ID required' : 'Not authenticated');
         }
@@ -323,7 +301,6 @@ class GradescopeAPI {
         if (!fileInfo.hasFiles) {
             return this.createEmptyResult(fileInfo);
         }
-        console.log(`GradescopeAPI: Found ${fileInfo.fileCount} files, attempting downloads...`);
         // Try individual downloads first (more reliable than ZIP for this interface)
         if (fileInfo.files?.length && fileInfo.files.length > 0) {
             return await this.downloadIndividualFiles(submissionId, fileInfo.files);
@@ -860,9 +837,8 @@ window.GradescopeAPI = new GradescopeAPI();
             }
             const [, courseId, , assignmentId] = urlMatch;
             try {
-                // Dynamic import to avoid module loading issues
-                const rubricModule = await import(chrome.runtime.getURL('gradescope/rubric.js'));
-                const rubricMap = await rubricModule.fetchRubricMap(parseInt(courseId, 10), parseInt(assignmentId, 10));
+                // Call global fetchRubricMap function
+                const rubricMap = await fetchRubricMap(parseInt(courseId, 10), parseInt(assignmentId, 10));
                 console.log('supergrader: Rubric retrieval successful!');
                 console.log('Questions:', rubricMap.questions);
                 console.log('Item to Question mapping:', rubricMap.itemToQuestion);
@@ -1172,52 +1148,65 @@ function getRubric() {
                     const allOptions = [];
                     let selectedOption = '';
                     let selectedPoints = 0;
-                    // Look for the rubricItemGroup--rubricItems container that has all options
-                    const optionsContainer = element.querySelector('.rubricItemGroup--rubricItems');
-                    if (optionsContainer) {
-                        // Find all individual rubric items within this group
-                        const optionItems = optionsContainer.querySelectorAll('.rubricItem');
-                        optionItems.forEach((optionElement) => {
-                            const optionDesc = optionElement.querySelector('.rubricField-description')?.textContent?.trim();
-                            const optionPoints = optionElement.querySelector('.rubricField-points')?.textContent?.trim();
-                            const optionPointValue = optionPoints ? parseFloat(optionPoints.replace(/[^\d.-]/g, '')) || 0 : 0;
-                            if (optionDesc) {
-                                const optionText = `"${optionDesc}" (${optionPointValue} pts)`;
-                                allOptions.push(optionText);
-                                // Check if this option is selected (multiple ways to detect)
-                                const optionKey = optionElement.querySelector('.rubricItem--key');
-                                const isApplied = optionKey && optionKey.classList.contains('rubricItem--key-applied');
-                                // Also check for other selection indicators
-                                const isSelected = isApplied ||
-                                    optionElement.classList.contains('rubricItem--applied') ||
-                                    optionElement.classList.contains('selected') ||
-                                    optionElement.querySelector('.selected') !== null;
-                                if (isSelected) {
-                                    selectedOption = optionDesc;
-                                    selectedPoints = optionPointValue;
-                                }
+                    // --- NEW IMPLEMENTATION ------------------------------------------------------
+                    // Radio groups show their individual options in a *sibling* container with the
+                    // class `.rubricItemGroup--rubricItems`.  Each option is a `.rubricItem` node.
+                    // 1.  Locate that sibling container via the aria-describedby linkage:
+                    let radioOptions = [];
+                    const headerId = groupKeyButton?.getAttribute('id');
+                    const rootDoc = getInnerDoc();
+                    if (headerId) {
+                        const siblingContainer = rootDoc.querySelector(`[aria-describedby="${headerId}"]`);
+                        if (siblingContainer) {
+                            radioOptions = Array.from(siblingContainer.querySelectorAll('.rubricItem'));
+                        }
+                    }
+                    // Fallbacks – try other relative relations if the first strategy failed
+                    if (radioOptions.length === 0) {
+                        const possible = element.parentElement?.querySelectorAll('.rubricItemGroup--rubricItems .rubricItem');
+                        if (possible && possible.length) {
+                            radioOptions = Array.from(possible);
+                        }
+                    }
+                    // If still empty, as a last resort, search globally but this should rarely happen
+                    if (radioOptions.length === 0) {
+                        radioOptions = Array.from(rootDoc.querySelectorAll('.rubricItemGroup--rubricItems .rubricItem'));
+                    }
+                    // Parse each option that we found
+                    if (radioOptions.length > 0) {
+                        radioOptions.forEach((optionElement) => {
+                            const keyBtn = optionElement.querySelector('.rubricItem--key');
+                            // Points
+                            const ptsEl = optionElement.querySelector('.rubricField-points');
+                            const ptsText = ptsEl?.textContent?.trim() || '';
+                            const optionPointValue = parseFloat(ptsText.replace(/[^\d.-]/g, '')) || 0;
+                            // Description – markdown container lives inside .rubricField-description
+                            const descEl = optionElement.querySelector('.rubricField-description');
+                            let optionDesc = descEl?.textContent?.trim() || '';
+                            optionDesc = optionDesc.replace(/^Grading comment:\s*/, '');
+                            // Build option text summary
+                            const optionText = optionDesc ? `"${optionDesc}" (${optionPointValue} pts)` : `${keyBtn?.textContent || '?'} (${optionPointValue} pts)`;
+                            allOptions.push(optionText);
+                            // Detect if this is the currently selected radio option
+                            const keyApplied = keyBtn?.classList.contains('rubricItem--key-applied');
+                            const ariaPressed = keyBtn?.getAttribute('aria-pressed') === 'true';
+                            if (keyApplied || ariaPressed) {
+                                selectedOption = optionDesc;
+                                selectedPoints = optionPointValue;
                             }
                         });
                     }
-                    // Alternative: look directly in the main element for options if container not found
-                    if (allOptions.length === 0) {
-                        const directOptions = element.querySelectorAll('.rubricItem');
-                        directOptions.forEach((optionElement) => {
-                            const optionDesc = optionElement.querySelector('.rubricField-description')?.textContent?.trim();
-                            const optionPoints = optionElement.querySelector('.rubricField-points')?.textContent?.trim();
-                            const optionPointValue = optionPoints ? parseFloat(optionPoints.replace(/[^\d.-]/g, '')) || 0 : 0;
-                            if (optionDesc && optionDesc !== groupDesc) { // Avoid duplicating the main group description
-                                const optionText = `"${optionDesc}" (${optionPointValue} pts)`;
-                                allOptions.push(optionText);
-                                // Check if this option is selected
-                                const optionKey = optionElement.querySelector('.rubricItem--key');
-                                const isApplied = optionKey && optionKey.classList.contains('rubricItem--key-applied');
-                                if (isApplied || optionElement.classList.contains('rubricItem--applied')) {
-                                    selectedOption = optionDesc;
-                                    selectedPoints = optionPointValue;
-                                }
-                            }
-                        });
+                    else {
+                        // Group might be collapsed, only summary visible
+                        const summaryEl = element.querySelector('.rubricField-description');
+                        if (summaryEl) {
+                            const cleanSummary = summaryEl.textContent?.trim().replace(/^Grading comment:\s*/, '') || '';
+                            allOptions.push(`"${cleanSummary}" (collapsed - expand to see all options)`);
+                            selectedOption = cleanSummary;
+                            // Points are shown in group header even when collapsed
+                            const groupPts = element.querySelector('.rubricField-points')?.textContent?.trim() || '0';
+                            selectedPoints = parseFloat(groupPts.replace(/[^\d.-]/g, '')) || 0;
+                        }
                     }
                     // Build description showing this is a radio group with ALL options
                     description = `${groupDesc || 'Radio Group'} (Select one option)`;
@@ -1541,9 +1530,8 @@ window.addEventListener('SUPERGRADER_TEST_RUBRIC', async (_event) => {
         }
         // Direct rubric retrieval - avoid timing issues with supergrader helper
         try {
-            // Dynamic import to avoid module loading issues
-            const rubricModule = await import(chrome.runtime.getURL('gradescope/rubric.js'));
-            const rubricMap = await rubricModule.fetchRubricMap(parseInt(courseId, 10), parseInt(assignmentId, 10));
+            // Call global fetchRubricMap function
+            const rubricMap = await fetchRubricMap(parseInt(courseId, 10), parseInt(assignmentId, 10));
             console.log('✅ Rubric parsing successful!');
             console.log('Questions:', rubricMap.questions);
             console.log('Item to Question mapping:', rubricMap.itemToQuestion);
@@ -2188,99 +2176,319 @@ function initializeAPITesting() {
     window.supergrader.API_TEST_FIXTURES = API_TEST_FIXTURES;
     // Add quick rubric inspection function
     window.supergrader.showRubricData = () => {
-        console.log('🔍 QUICK RUBRIC DATA INSPECTION:');
-        console.log('='.repeat(60));
+        console.log('🔍 RUBRIC DATA:');
+        console.log('═'.repeat(40));
         // Check unified system
         const getRubric = window.getRubric;
         if (typeof getRubric === 'function') {
             const rubricResult = getRubric();
             if (rubricResult?.type === 'structured') {
-                console.log('📝 STRUCTURED RUBRIC FOUND:');
-                console.log(`Style: ${rubricResult.rubricStyle} | Items: ${rubricResult.items.length}`);
-                console.log('');
+                console.log(`📝 Found ${rubricResult.items.length} rubric items (${rubricResult.rubricStyle} style)`);
                 rubricResult.items.forEach((item, index) => {
-                    console.log(`${index + 1}. "${item.description}" (${item.points} pts)`);
-                    console.log(`   ID: ${item.id}`);
-                    if (item.element) {
-                        const input = item.element.querySelector('input[type="checkbox"], input[type="radio"]');
-                        console.log(`   Currently: ${input?.checked ? 'SELECTED' : 'unselected'}`);
+                    // For radio groups, show a cleaner summary
+                    if (item.description.includes('Available options:')) {
+                        const lines = item.description.split('\n');
+                        const title = lines[0];
+                        const selectedLine = lines.find((l) => l.includes('Currently selected:'));
+                        console.log(`${index + 1}. ${title} (${item.points} pts)`);
+                        if (selectedLine) {
+                            console.log(`    ${selectedLine.trim()}`);
+                        }
                     }
-                    console.log('');
+                    else {
+                        // Regular checkbox item
+                        const desc = item.description.length > 80 ?
+                            item.description.substring(0, 80) + '...' : item.description;
+                        console.log(`${index + 1}. ${desc} (${item.points} pts)`);
+                    }
                 });
             }
             else if (rubricResult?.type === 'manual') {
-                console.log('📝 MANUAL SCORING INTERFACE:');
-                console.log(`Score box value: "${rubricResult.box?.value || '(empty)'}"`);
+                console.log('📝 Manual scoring interface');
+                console.log(`Current score: ${rubricResult.box?.value || '(empty)'}`);
             }
             else {
-                console.log('❌ NO RUBRIC FOUND on this page');
-                console.log('Page URL:', window.location.href);
-                console.log('');
-                // Debug: Let's see what DOM elements are actually available
-                console.log('🔧 DEBUGGING - Available DOM elements:');
-                console.log('Rubric items (.rubric-item):', document.querySelectorAll('.rubric-item').length);
-                console.log('Rubric items with IDs:', document.querySelectorAll('.rubric-item[data-rubric-item-id]').length);
-                console.log('Score inputs:', document.querySelectorAll('input[type="number"]').length);
-                console.log('Text areas:', document.querySelectorAll('textarea').length);
-                console.log('All inputs:', document.querySelectorAll('input').length);
-                console.log('Iframes:', document.querySelectorAll('iframe').length);
-                // Check if we can find rubric-related elements
-                const possibleRubrics = document.querySelectorAll('[class*="rubric"], [class*="score"], [class*="grade"]');
-                console.log('Elements with rubric/score/grade classes:', possibleRubrics.length);
-                if (possibleRubrics.length > 0) {
-                    console.log('Found elements that might be rubric-related:');
-                    possibleRubrics.forEach((el, i) => {
-                        console.log(`  ${i + 1}. ${el.tagName}.${el.className} - "${el.textContent?.slice(0, 50)}..."`);
-                    });
-                }
-                // Check iframe content
-                const iframes = document.querySelectorAll('iframe');
-                if (iframes.length > 0) {
-                    console.log('Found iframes - checking content:');
-                    iframes.forEach((iframe, i) => {
-                        try {
-                            console.log(`  Iframe ${i + 1}: ${iframe.src || 'no src'}`);
-                            if (iframe.contentDocument) {
-                                const iframeRubrics = iframe.contentDocument.querySelectorAll('.rubric-item');
-                                console.log(`    Contains ${iframeRubrics.length} .rubric-item elements`);
-                            }
-                            else {
-                                console.log('    Cannot access iframe content (cross-origin or not loaded)');
-                            }
-                        }
-                        catch (e) {
-                            console.log(`    Error accessing iframe ${i + 1}: ${e.message}`);
-                        }
-                    });
-                }
+                console.log('❌ No rubric found on this page');
             }
         }
         else {
-            console.log('❌ getRubric function not available');
+            console.log('❌ Rubric system not available');
         }
-        console.log('='.repeat(60));
-        console.log('💡 TIP: Run this on a Gradescope grading page to see actual rubric content');
-        // Run additional debugging tests when showing rubric data
-        console.log('\n🔬 RUNNING ADDITIONAL DEBUGGING TESTS...\n');
-        // Run selection state debugging
-        if (typeof window.supergrader.debugSelection === 'function') {
-            try {
-                window.supergrader.debugSelection();
-            }
-            catch (error) {
-                console.error('Failed to run selection debugging:', error);
+        console.log('═'.repeat(40));
+    };
+    // Add function to scan expanded radio group for options
+    window.supergrader.scanExpandedRadioGroup = (group, groupNumber) => {
+        console.log(`\n🔍 SCANNING EXPANDED GROUP ${groupNumber}:`);
+        window.supergrader.performRadioGroupScan(group, groupNumber);
+    };
+    // Add function to perform the actual radio group scanning
+    window.supergrader.performRadioGroupScan = (group, _groupNumber) => {
+        // ENHANCED SEARCH: Try multiple container patterns
+        const containerSelectors = [
+            '.rubricItemGroup--rubricItems',
+            '.rubricItems',
+            '.options',
+            '.radio-options',
+            '[class*="options"]',
+            '[class*="items"]'
+        ];
+        const optionSelectors = [
+            '.rubricItem',
+            '.option',
+            '.radio-option',
+            '[class*="option"]',
+            '[class*="item"]',
+            'input[type="radio"]',
+            'label',
+            'button'
+        ];
+        let optionsContainer = null;
+        let containerFound = false;
+        for (const selector of containerSelectors) {
+            optionsContainer = group.querySelector(selector);
+            if (optionsContainer) {
+                console.log(`  ✅ Found options container with selector: ${selector}`);
+                containerFound = true;
+                break;
             }
         }
-        // Run radio options debugging
-        if (typeof window.supergrader.debugRadioOptions === 'function') {
-            try {
-                window.supergrader.debugRadioOptions();
-            }
-            catch (error) {
-                console.error('Failed to run radio options debugging:', error);
+        if (!containerFound) {
+            console.log('  ❌ No standard options container found');
+        }
+        let allFoundOptions = [];
+        // Search in container if found
+        if (optionsContainer) {
+            for (const selector of optionSelectors) {
+                const options = Array.from(optionsContainer.querySelectorAll(selector));
+                if (options.length > 0) {
+                    console.log(`    ✅ Found ${options.length} options with selector: ${selector}`);
+                    allFoundOptions = allFoundOptions.concat(options);
+                }
             }
         }
-        console.log('✅ RUBRIC DEBUGGING COMPLETE - All available tests have been run!');
+        // Search directly in group if no container or container has no options
+        if (allFoundOptions.length === 0) {
+            console.log('  🔍 Searching directly in group element...');
+            for (const selector of optionSelectors) {
+                const options = Array.from(group.querySelectorAll(selector));
+                if (options.length > 0) {
+                    console.log(`    ✅ Found ${options.length} direct options with selector: ${selector}`);
+                    allFoundOptions = allFoundOptions.concat(options);
+                }
+            }
+        }
+        // Remove duplicates
+        const uniqueOptions = Array.from(new Set(allFoundOptions));
+        console.log(`  📊 Total unique options found: ${uniqueOptions.length}`);
+        // Filter out obvious non-options (settings buttons, etc.)
+        const filteredOptions = uniqueOptions.filter(option => {
+            const text = option.textContent?.trim() || '';
+            const classes = option.className || '';
+            // Filter out control/settings buttons
+            if (classes.includes('rubricSettings') ||
+                classes.includes('control') ||
+                text === 'Select one' ||
+                text === '' ||
+                classes.includes('dragHandle')) {
+                return false;
+            }
+            return true;
+        });
+        console.log(`  🎯 Filtered to ${filteredOptions.length} likely option elements:`);
+        // Look specifically for standard option letters (Q, W, E, R, T, etc.)
+        const optionLetterElements = filteredOptions.filter(option => {
+            const text = option.textContent?.trim() || '';
+            return /^[A-Z]$/.test(text); // Single uppercase letters
+        });
+        if (optionLetterElements.length > 0) {
+            console.log(`  🎯 Found ${optionLetterElements.length} standard option letters: [${optionLetterElements.map(el => el.textContent?.trim()).join(', ')}]`);
+        }
+        // Prioritize option letters for detailed analysis
+        const priorityOptions = optionLetterElements.length > 0 ? optionLetterElements : filteredOptions;
+        // Analyze each priority option
+        priorityOptions.forEach((option, optIndex) => {
+            const text = option.textContent?.trim() || '';
+            const isOptionLetter = /^[A-Z]$/.test(text);
+            console.log(`\n    ${isOptionLetter ? '⭐ OPTION LETTER' : 'Option'} ${optIndex + 1}:`);
+            console.log(`      Element: ${option.tagName}.${option.className}`);
+            console.log(`      Text content: "${text}"`);
+            if (isOptionLetter) {
+                console.log(`      🎯 Standard radio option: "${text}"`);
+                // For option letters, look for associated content
+                const parent = option.closest('.rubricItem, .option, div');
+                if (parent && parent !== option) {
+                    const parentText = parent.textContent?.trim() || '';
+                    if (parentText !== text && parentText.length > text.length) {
+                        console.log(`      📝 Associated content: "${parentText.substring(0, 150)}..."`);
+                    }
+                }
+            }
+            // Try multiple ways to find description
+            const descSelectors = [
+                '.rubricField-description',
+                '.description',
+                '.text',
+                '[class*="desc"]',
+                'label',
+                'span'
+            ];
+            let optionDesc = '';
+            for (const descSel of descSelectors) {
+                const descEl = option.querySelector(descSel);
+                if (descEl && descEl.textContent?.trim()) {
+                    optionDesc = descEl.textContent.trim();
+                    console.log(`      Description (${descSel}): "${optionDesc}"`);
+                    break;
+                }
+            }
+            if (!optionDesc && option.textContent?.trim() && !isOptionLetter) {
+                optionDesc = option.textContent.trim();
+                console.log(`      Description (direct text): "${optionDesc}"`);
+            }
+            // Try multiple ways to find points
+            const pointSelectors = [
+                '.rubricField-points',
+                '.points',
+                '.score',
+                '[class*="point"]'
+            ];
+            let optionPoints = '';
+            for (const pointSel of pointSelectors) {
+                const pointEl = option.querySelector(pointSel);
+                if (pointEl && pointEl.textContent?.trim()) {
+                    optionPoints = pointEl.textContent.trim();
+                    console.log(`      Points (${pointSel}): "${optionPoints}"`);
+                    break;
+                }
+            }
+            // For option letters, also check nearby elements for points
+            if (isOptionLetter && !optionPoints) {
+                const nearbyElements = [
+                    option.nextElementSibling,
+                    option.previousElementSibling,
+                    option.parentElement?.querySelector('[class*="point"]')
+                ].filter(Boolean);
+                for (const nearby of nearbyElements) {
+                    const nearbyText = nearby?.textContent?.trim() || '';
+                    if (/\d+\s*(pt|pts|point|points)/i.test(nearbyText)) {
+                        console.log(`      Points (nearby): "${nearbyText}"`);
+                        break;
+                    }
+                }
+            }
+            // Try multiple ways to detect selection
+            const selectionIndicators = [
+                '.rubricItem--key-applied',
+                '.applied',
+                '.selected',
+                '.active',
+                '.checked',
+                '[class*="applied"]',
+                '[class*="selected"]'
+            ];
+            let isSelected = false;
+            for (const selSel of selectionIndicators) {
+                if (option.querySelector(selSel) || option.classList.contains(selSel.replace('.', ''))) {
+                    isSelected = true;
+                    console.log(`      ✅ Selected (indicator: ${selSel})`);
+                    break;
+                }
+            }
+            if (!isSelected && option.tagName === 'INPUT') {
+                isSelected = option.checked;
+                if (isSelected)
+                    console.log(`      ✅ Selected (input checked)`);
+            }
+            if (!isSelected) {
+                console.log(`      ⭕ Not selected`);
+            }
+            console.log(`      Raw HTML: ${option.outerHTML.substring(0, 150)}...`);
+        });
+        // Summary for this group
+        console.log(`\n  📊 GROUP SCAN SUMMARY:`);
+        console.log(`    - Total elements found: ${uniqueOptions.length}`);
+        console.log(`    - After filtering: ${filteredOptions.length}`);
+        console.log(`    - Option letters found: ${optionLetterElements.length} [${optionLetterElements.map(el => el.textContent?.trim()).join(', ')}]`);
+        if (optionLetterElements.length === 0) {
+            console.log(`    ⚠️ No standard option letters detected - group may be collapsed or use different structure`);
+        }
+        // If still no good options found, run the advanced analysis
+        if (filteredOptions.length === 0) {
+            console.log('  ⚠️ No clear options found after filtering, running advanced analysis...');
+            // Show immediate children structure
+            const allChildren = Array.from(group.children);
+            console.log(`  📋 ${allChildren.length} immediate children:`);
+            allChildren.forEach((child, childIndex) => {
+                console.log(`    Child ${childIndex + 1}: ${child.tagName}.${child.className}`);
+                console.log(`      Text preview: "${child.textContent?.trim().substring(0, 50)}"`);
+                console.log(`      Has children: ${child.children.length > 0}`);
+            });
+            // STRATEGY: Look for elements with significant text content (likely options)
+            console.log('  📝 Looking for text-rich elements (potential option descriptions)...');
+            const allDescendants = Array.from(group.querySelectorAll('*'));
+            const textRichElements = allDescendants.filter(el => {
+                const text = el.textContent?.trim() || '';
+                const hasSignificantText = text.length > 15 && text.length < 500;
+                const isNotContainer = el.children.length === 0 ||
+                    Array.from(el.children).every(child => (child.textContent?.trim().length || 0) < 20);
+                return hasSignificantText && isNotContainer;
+            });
+            console.log(`  Found ${textRichElements.length} text-rich elements:`);
+            textRichElements.slice(0, 8).forEach((textEl, idx) => {
+                console.log(`    Text-rich ${idx + 1}: ${textEl.tagName}.${textEl.className}`);
+                console.log(`      Content: "${textEl.textContent?.trim().substring(0, 100)}..."`);
+            });
+        }
+    };
+    // Add DOM depth analysis function  
+    window.supergrader.analyzeRadioGroupDepth = (groupElement) => {
+        const analysis = {
+            maxDepth: 0,
+            depthCounts: {},
+            elementsAtDepth: {},
+            likelyOptionDepth: 0
+        };
+        // Recursively traverse and catalog depth
+        const traverse = (element, depth) => {
+            analysis.maxDepth = Math.max(analysis.maxDepth, depth);
+            analysis.depthCounts[depth] = (analysis.depthCounts[depth] || 0) + 1;
+            if (!analysis.elementsAtDepth[depth]) {
+                analysis.elementsAtDepth[depth] = [];
+            }
+            analysis.elementsAtDepth[depth].push(element);
+            Array.from(element.children).forEach(child => {
+                traverse(child, depth + 1);
+            });
+        };
+        // Start traversal from group element children (depth 1)
+        Array.from(groupElement.children).forEach(child => {
+            traverse(child, 1);
+        });
+        // Find most likely option depth based on heuristics
+        let bestScore = 0;
+        for (let depth = 1; depth <= analysis.maxDepth; depth++) {
+            const elementsAtThisDepth = analysis.elementsAtDepth[depth] || [];
+            let score = 0;
+            // Score based on number of elements (more options = higher score)
+            score += elementsAtThisDepth.length * 10;
+            // Score based on text content patterns
+            elementsAtThisDepth.forEach(el => {
+                const text = el.textContent?.trim() || '';
+                if (text.length > 20 && text.length < 300)
+                    score += 20; // Good option length
+                if (/\d+\s*(pt|pts|point|points)/i.test(text))
+                    score += 30; // Has points
+                if (text.includes('**') || text.includes('Steps'))
+                    score += 15; // Formatting indicators
+                if (el.children.length === 0)
+                    score += 10; // Leaf elements preferred
+            });
+            if (score > bestScore) {
+                bestScore = score;
+                analysis.likelyOptionDepth = depth;
+            }
+        }
+        return analysis;
     };
     // Add debug functions for investigating selection issues
     window.supergrader.debugSelection = () => {
@@ -2320,7 +2528,90 @@ function initializeAPITesting() {
         console.log('='.repeat(60));
     };
     window.supergrader.debugRadioOptions = () => {
-        console.log('📻 RADIO BUTTON OPTIONS DEBUGGING:');
+        console.log('📻 Radio Options Debug:');
+        const root = getInnerDoc();
+        const radioGroups = Array.from(root.querySelectorAll('.rubricItemGroup'));
+        console.log(`Found ${radioGroups.length} radio groups on page`);
+        // Sequential scanning function
+        window.supergrader.scanRadioGroupsSequentially(radioGroups, 0);
+    };
+    // Add sequential radio group scanning to handle accordion behavior  
+    window.supergrader.scanRadioGroupsSequentially = (groups, currentIndex) => {
+        if (currentIndex >= groups.length) {
+            console.log('✅ All radio groups scanned');
+            return;
+        }
+        const group = groups[currentIndex];
+        console.log(`📋 Group ${currentIndex + 1}:`);
+        window.supergrader.scanSingleRadioGroup(group, currentIndex + 1, () => {
+            // Continue to next group after current one is complete
+            setTimeout(() => {
+                window.supergrader.scanRadioGroupsSequentially(groups, currentIndex + 1);
+            }, 200); // Brief pause between groups
+        });
+    };
+    // Modified single group scanning with callback
+    window.supergrader.scanSingleRadioGroup = (group, groupNumber, onComplete) => {
+        const groupDesc = group.querySelector('.rubricField-description')?.textContent?.trim();
+        console.log(`  ${groupDesc || 'Unknown'}`);
+        // 🔑 KEY FIX: Check if group is collapsed and expand it
+        const expandButton = group.querySelector('button[aria-expanded="false"]');
+        if (expandButton) {
+            try {
+                // Expand the group
+                expandButton.click();
+                // Give it more time to expand and load content
+                setTimeout(() => {
+                    window.supergrader.performDeepRadioGroupScan(group, groupNumber);
+                    // Collapse it back to restore original state
+                    setTimeout(() => {
+                        if (expandButton.getAttribute('aria-expanded') === 'true') {
+                            expandButton.click();
+                        }
+                        onComplete(); // Signal completion
+                    }, 100);
+                }, 300); // Longer wait for dynamic content
+            }
+            catch (error) {
+                console.log('  ❌ Expansion failed');
+                onComplete();
+            }
+        }
+        else {
+            window.supergrader.performDeepRadioGroupScan(group, groupNumber);
+            onComplete();
+        }
+    };
+    // Enhanced deep scanning function - now uses correct selectors from DOM analysis
+    window.supergrader.performDeepRadioGroupScan = (group, _groupNumber) => {
+        // NEW IMPLEMENTATION: locate sibling container that holds individual `.rubricItem` nodes
+        const headerBtn = group.querySelector('.rubricItemGroup--key');
+        const headerId = headerBtn?.getAttribute('id');
+        let optionItems = [];
+        if (headerId) {
+            const container = getInnerDoc().querySelector(`[aria-describedby="${headerId}"]`);
+            if (container) {
+                optionItems = Array.from(container.querySelectorAll('.rubricItem'));
+            }
+        }
+        // Fallbacks if nothing found yet
+        if (optionItems.length === 0) {
+            optionItems = Array.from(group.querySelectorAll('.rubricItemGroup--rubricItems .rubricItem'));
+        }
+        if (optionItems.length === 0) {
+            optionItems = Array.from(getInnerDoc().querySelectorAll('.rubricItemGroup--rubricItems .rubricItem'));
+        }
+        console.log(`    📊 Found ${optionItems.length} radio options`);
+        if (optionItems.length > 0) {
+            console.log(`    ✅ ${optionItems.length} options`);
+        }
+        else {
+            console.log(`    ⚠️ No options found`);
+        }
+    };
+    // Legacy forEach approach (keeping for backwards compatibility)
+    window.supergrader.debugRadioOptionsLegacy = () => {
+        console.log('📻 RADIO BUTTON OPTIONS DEBUGGING (Legacy):');
         console.log('='.repeat(60));
         const root = getInnerDoc();
         const radioGroups = root.querySelectorAll('.rubricItemGroup');
@@ -2329,42 +2620,63 @@ function initializeAPITesting() {
             console.log(`\nGroup ${index + 1}:`);
             console.log('  Element:', group);
             console.log('  Classes:', group.className);
+            console.log('  innerHTML preview:', group.innerHTML.substring(0, 200) + '...');
             // Check for group description
             const groupDesc = group.querySelector('.rubricField-description')?.textContent?.trim();
             console.log('  Group description:', groupDesc);
-            // Look for options container
-            const optionsContainer = group.querySelector('.rubricItemGroup--rubricItems');
-            console.log('  Has options container:', !!optionsContainer);
-            if (optionsContainer) {
-                const options = optionsContainer.querySelectorAll('.rubricItem');
-                console.log(`  Options found: ${options.length}`);
-                options.forEach((option, optIndex) => {
-                    const optionDesc = option.querySelector('.rubricField-description')?.textContent?.trim();
-                    const optionPoints = option.querySelector('.rubricField-points')?.textContent?.trim();
-                    const isApplied = option.querySelector('.rubricItem--key-applied');
-                    console.log(`    Option ${optIndex + 1}: "${optionDesc}" (${optionPoints})`);
-                    console.log(`      Applied: ${!!isApplied}`);
-                });
-            }
-            else {
-                // Look for direct child options
-                const directOptions = group.querySelectorAll('.rubricItem');
-                console.log(`  Direct child options: ${directOptions.length}`);
-                directOptions.forEach((option, optIndex) => {
-                    const optionDesc = option.querySelector('.rubricField-description')?.textContent?.trim();
-                    console.log(`    Direct option ${optIndex + 1}: "${optionDesc}"`);
-                });
-            }
+            // Note: This legacy version doesn't handle accordion behavior properly
+            console.log('  ⚠️ Using legacy scanning (may miss options in collapsed groups)');
+            window.supergrader.performRadioGroupScan(group, index + 1);
         });
         console.log('='.repeat(60));
+        console.log('💡 TIP: Use supergrader.debugRadioOptions() for better accordion handling');
     };
     console.log('🧪 API testing functions initialized');
     console.log('💡 Quick commands:');
-    console.log('   supergrader.showRubricData() - Show actual rubric content');
+    console.log('   supergrader.showRubricData() - Show actual rubric content + run all debugging');
     console.log('   supergrader.debugSelection() - Debug selection detection issues');
-    console.log('   supergrader.debugRadioOptions() - Debug radio button option extraction');
+    console.log('   supergrader.debugRadioOptions() - 🌟 SEQUENTIAL radio button scanning (handles accordion)');
+    console.log('   supergrader.debugRadioOptionsLegacy() - Legacy simultaneous scanning');
+    console.log('   supergrader.analyzeRadioGroupDepth(element) - Analyze DOM structure depth');
     console.log('   supergrader.testAPI() - Full API test suite');
+    console.log('');
+    console.log('🎯 For radio buttons: Use the main debugRadioOptions() - it handles one-at-a-time expansion!');
 }
 // Initialize API testing when script loads
 initializeAPITesting();
+// Add wait helper to ensure option nodes are present before scanning
+window.supergrader.waitForRadioOptions = (grp, timeoutMs = 1500) => {
+    return new Promise(resolve => {
+        const selector = '.rubricItemGroupSummary--item';
+        // quick check first
+        const immediate = grp.querySelectorAll(selector);
+        if (immediate.length) {
+            resolve(Array.from(immediate));
+            return;
+        }
+        const start = Date.now();
+        const tryFind = () => {
+            const items = grp.querySelectorAll(selector);
+            if (items.length) {
+                resolve(Array.from(items));
+                return true;
+            }
+            return false;
+        };
+        // polling every 60 ms
+        const pollId = setInterval(() => {
+            if (tryFind() || Date.now() - start > timeoutMs) {
+                clearInterval(pollId);
+            }
+        }, 60);
+        // mutation observer as backup
+        const mo = new MutationObserver(() => {
+            if (tryFind()) {
+                mo.disconnect();
+                clearInterval(pollId);
+            }
+        });
+        mo.observe(grp, { childList: true, subtree: true });
+    });
+};
 //# sourceMappingURL=gradescope-api.js.map
