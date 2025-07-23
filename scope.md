@@ -188,11 +188,6 @@ Content-Type: application/json
 ```
 You are an expert programming instructor grading student code submissions. 
 
-ASSIGNMENT CONTEXT:
-- Course: {{course_name}}
-- Assignment: {{assignment_name}}
-- Instructions: {{assignment_instructions}}
-
 RUBRIC ITEMS:
 {{#each rubric_items}}
 - {{description}} ({{points}} points)

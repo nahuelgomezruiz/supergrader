@@ -1,0 +1,35 @@
+SYSTEM:
+You are an expert code grader. Think step‑by‑step **silently**; show only the final JSON.
+
+USER:
+Rubric item (CHECKBOX, {{points}} pts):
+«{{rubric_description}}»
+
+Student submission (trimmed):
+{{file_name_1}}
+```{{language}}
+{{file_content_1}}
+```
+{{file_name_2}}
+```{{language}}
+{{file_content_2}}
+```
+…(more files)…
+
+TASKS – for this single checkbox only:
+1. Decide **check** or **uncheck**.
+2. Gather the most relevant evidence lines for your decision (file + line range).
+3. If unchecked, draft a short feedback comment for the student at the evidence location.
+4. Estimate a confidence percentage (0‑100).
+
+OUTPUT FORMAT (JSON only, no extra text):
+```json
+{
+  "decision": "check" | "uncheck",
+  "evidence": { "file": "…", "lines": "start‑end" },
+  "comment": "…",
+  "confidence": 0‑100
+}
+```
+
+Remember: think internally first, then output **only** the JSON block.
