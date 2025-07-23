@@ -1101,13 +1101,23 @@ class GradescopeAPI {
           
           console.log(`supergrader: Found ${questionCount} questions with ${totalItems} total rubric items`);
           
-          // Log each question's details
-          Object.entries(rubricMap.questions).forEach(([qId, qData]: [string, any]) => {
-            console.log(`Question ${qId}: "${qData.name}" (${qData.rubricStyle}, parent: ${qData.parentId || 'none'})`);
-            qData.items.forEach((item: any) => {
-              console.log(`  Item ${item.id}: "${item.text}" (${item.points} pts)`);
-            });
+                // Log each question's details with enhanced formatting
+      Object.entries(rubricMap.questions).forEach(([qId, qData]: [string, any]) => {
+        const qTypeEmoji = qData.rubricStyle === 'RADIO' ? '📻' : '☑️';
+        const parentInfo = qData.parentId ? `parent: ${qData.parentId}` : 'root question';
+        console.log(`${qTypeEmoji} Question ${qId}: "${qData.name}" (${qData.rubricStyle}, ${parentInfo})`);
+        
+        if (qData.items && qData.items.length > 0) {
+          console.log(`    📋 ${qData.items.length} items available:`);
+          qData.items.forEach((item: any, index: number) => {
+            const pointsEmoji = item.points > 0 ? '➕' : item.points < 0 ? '➖' : '⚪';
+            console.log(`      ${index + 1}. [${item.id}] "${item.text}" ${pointsEmoji} ${item.points} pts`);
           });
+        } else {
+          console.log(`    ⚠️ No items found for this question`);
+        }
+        console.log('');
+      });
           
           return rubricMap;
         } catch (error) {
@@ -1531,13 +1541,15 @@ function getRubric(): RubricResult {
               }
             }
             
-            // Build description showing this is a radio group with ALL options
-            description = `${groupDesc || 'Radio Group'} (Select one option)`;
+            // Build enhanced description showing this is a radio group with ALL options
+            description = `📻 ${groupDesc || 'Radio Group'} (Select one option)`;
             if (allOptions.length > 0) {
-              description += `\n  Available options:\n  - ${allOptions.join('\n  - ')}`;
+              description += `\n  📋 Available options (${allOptions.length}):\n  ◦ ${allOptions.join('\n  ◦ ')}`;
             }
             if (selectedOption) {
-              description += `\n  Currently selected: "${selectedOption}" (${selectedPoints} pts)`;
+              description += `\n  ⭐ Currently selected: "${selectedOption}" (${selectedPoints} pts)`;
+            } else {
+              description += `\n  ⚪ No option currently selected`;
             }
             
             points = selectedPoints;
@@ -1587,19 +1599,39 @@ function getRubric(): RubricResult {
       }
                 console.log(`📝 Found ${items.length} rubric items via DOM selectors`);
             
-            // Add debugging information for each item
+            // Enhanced debugging information for each item with emojis
             items.forEach(item => {
-              console.log(`  Item ${item.id}: "${item.description?.split('\n')[0]}" (${item.points} pts, type: ${item.itemType})`);
+              const itemEmoji = item.itemType === 'RADIO' ? '📻' : '☑️';
+              const titleLine = item.description?.split('\n')[0] || 'No description';
+              const truncated = titleLine.length > 60 ? titleLine.substring(0, 60) + '...' : titleLine;
+              
+              console.log(`  ${itemEmoji} ${item.id}: "${truncated}" (${item.points} pts, ${item.itemType})`);
+              
+              // Show options count for radio groups
+              if (item.itemType === 'RADIO' && item.description?.includes('Available options')) {
+                const optionLines = item.description.split('\n').filter(l => l.includes('◦ '));
+                console.log(`    📋 ${optionLines.length} options available`);
+                
+                // Show selected option if any
+                const selectedLine = item.description.split('\n').find(l => l.includes('⭐ Currently selected:'));
+                if (selectedLine) {
+                  console.log(`    ⭐ Selection made`);
+                } else {
+                  console.log(`    ⚪ No selection`);
+                }
+              }
+              
               if (item.element) {
-                // Log selection state debugging
+                // Enhanced selection state debugging
                 const hasInput = item.element.querySelector('input[type="checkbox"], input[type="radio"]');
                 const hasKeyApplied = item.element.querySelector('.rubricItem--key-applied');
                 const hasGroupKeyApplied = item.element.querySelector('.rubricItemGroup--key-is-applied, .rubricItemGroup--key-applied');
                 
-                console.log(`    Debug - hasInput: ${!!hasInput}, hasKeyApplied: ${!!hasKeyApplied}, hasGroupKeyApplied: ${!!hasGroupKeyApplied}`);
+                console.log(`    🔍 Debug - hasInput: ${!!hasInput}, hasKeyApplied: ${!!hasKeyApplied}, hasGroupKeyApplied: ${!!hasGroupKeyApplied}`);
                 
                 if (hasInput) {
-                  console.log(`    Input checked state: ${(hasInput as HTMLInputElement).checked}`);
+                  const inputEmoji = (hasInput as HTMLInputElement).checked ? '✅' : '⬜';
+                  console.log(`    ${inputEmoji} Input state: ${(hasInput as HTMLInputElement).checked}`);
                 }
               }
             });
@@ -1947,12 +1979,13 @@ window.addEventListener('SUPERGRADER_TEST_RUBRIC', async (_event: Event) => {
         });
       });
       
-      console.log('📊 Rubric Summary:');
-      console.log(`  - ${questionCount} total questions`);
-      console.log(`  - ${totalItems} total rubric items`);
-      console.log(`  - ${parentChildRelationships} parent-child relationships`);
-      console.log(`  - ${checkboxQuestions} checkbox questions, ${radioQuestions} radio questions`);
-      console.log(`  - Points: ${positivePoints} positive, ${negativePoints} negative, ${zeroPoints} zero`);
+      console.log('📊 ENHANCED RUBRIC SUMMARY:');
+      console.log(`  🎯 ${questionCount} total questions`);
+      console.log(`  📝 ${totalItems} total rubric items`);
+      console.log(`  🔗 ${parentChildRelationships} parent-child relationships`);
+      console.log(`  ☑️ ${checkboxQuestions} checkbox questions`);
+      console.log(`  📻 ${radioQuestions} radio questions`);
+      console.log(`  ➕ ${positivePoints} positive points, ➖ ${negativePoints} negative points, ⚪ ${zeroPoints} zero points`);
       
       // Store successful result in DOM
       const resultElement = document.getElementById('supergrader-rubric-result') || document.createElement('meta');
@@ -2692,10 +2725,10 @@ function initializeAPITesting() {
   // Add test data fixtures to global namespace
   (window as any).supergrader.API_TEST_FIXTURES = API_TEST_FIXTURES;
   
-  // Add quick rubric inspection function
+  // Add enhanced rubric inspection function with radio button option display
   (window as any).supergrader.showRubricData = () => {
-    console.log('🔍 RUBRIC DATA:');
-    console.log('═'.repeat(40));
+    console.log('🔍 ENHANCED RUBRIC DATA DISPLAY:');
+    console.log('═'.repeat(50));
      
      // Check unified system
      const getRubric = (window as any).getRubric;
@@ -2703,39 +2736,144 @@ function initializeAPITesting() {
        const rubricResult = getRubric();
        
        if (rubricResult?.type === 'structured') {
-         console.log(`📝 Found ${rubricResult.items.length} rubric items (${rubricResult.rubricStyle} style)`);
+         const styleEmoji = rubricResult.rubricStyle === 'RADIO' ? '📻' : 
+                           rubricResult.rubricStyle === 'CHECKBOX' ? '☑️' : 
+                           rubricResult.rubricStyle === 'MIXED' ? '🔄' : '📝';
+         console.log(`${styleEmoji} Found ${rubricResult.items.length} rubric items (${rubricResult.rubricStyle} style)`);
+         console.log('');
+         
+         let radioCount = 0;
+         let checkboxCount = 0;
          
          rubricResult.items.forEach((item: any, index: number) => {
-           // For radio groups, show a cleaner summary
-           if (item.description.includes('Available options:')) {
+           const itemTypeEmoji = item.itemType === 'RADIO' ? '📻' : '☑️';
+           
+           // Enhanced radio group display
+           if (item.description && item.description.includes('Available options:')) {
+             radioCount++;
              const lines = item.description.split('\n');
              const title = lines[0];
+             const optionLines = lines.filter((l: string) => l.includes('- '));
              const selectedLine = lines.find((l: string) => l.includes('Currently selected:'));
-             console.log(`${index + 1}. ${title} (${item.points} pts)`);
-             if (selectedLine) {
-               console.log(`    ${selectedLine.trim()}`);
+             
+             console.log(`${itemTypeEmoji} ${index + 1}. ${title} (${item.points} pts)`);
+             
+             // Show all available options with proper formatting
+             if (optionLines.length > 0) {
+               console.log(`    📋 Available Options:`);
+               optionLines.forEach((option: string) => {
+                 const cleanOption = option.replace(/^\s*-\s*/, '');
+                 console.log(`       • ${cleanOption}`);
+               });
              }
+             
+             // Show current selection with highlighting
+             if (selectedLine) {
+               const selected = selectedLine.replace(/^\s*Currently selected:\s*/, '');
+               console.log(`    ⭐ ${selected}`);
+             } else {
+               console.log(`    ⚪ No option currently selected`);
+             }
+             
            } else {
-             // Regular checkbox item
-             const desc = item.description.length > 80 ? 
-               item.description.substring(0, 80) + '...' : item.description;
-             console.log(`${index + 1}. ${desc} (${item.points} pts)`);
+             // Regular checkbox item with enhanced display
+             checkboxCount++;
+             const desc = item.description && item.description.length > 100 ? 
+               item.description.substring(0, 100) + '...' : item.description || 'No description';
+             
+             // Show selection state for checkboxes
+             const selected = item.element ? 
+               ((window as any).GradescopeAPI?.isRubricItemSelected?.(item.element) || false) : false;
+             const selectionEmoji = selected ? '✅' : '⬜';
+             
+             console.log(`${itemTypeEmoji} ${index + 1}. ${desc} (${item.points} pts) ${selectionEmoji}`);
            }
+           console.log('');
          });
          
+         // Summary with emojis
+         console.log('📊 RUBRIC SUMMARY:');
+         console.log(`    📻 Radio Groups: ${radioCount}`);
+         console.log(`    ☑️ Checkbox Items: ${checkboxCount}`);
+         console.log(`    🎯 Total Items: ${rubricResult.items.length}`);
+         
        } else if (rubricResult?.type === 'manual') {
-         console.log('📝 Manual scoring interface');
-         console.log(`Current score: ${rubricResult.box?.value || '(empty)'}`);
+         console.log('✍️ Manual scoring interface detected');
+         console.log(`📝 Current score: ${rubricResult.box?.value || '(empty)'}`);
+         console.log(`🎯 Score box placeholder: "${rubricResult.box?.placeholder || 'none'}"`);
          
        } else {
          console.log('❌ No rubric found on this page');
+         console.log('💡 This might be a non-grading page or unsupported interface');
        }
      } else {
        console.log('❌ Rubric system not available');
+       console.log('💡 Try refreshing the page or check if you\'re on a grading page');
      }
      
-     console.log('═'.repeat(40));
+     console.log('═'.repeat(50));
    };
+
+  // Add function specifically for displaying radio button details
+  (window as any).supergrader.showRadioButtons = () => {
+    console.log('📻 RADIO BUTTON GROUPS DETAILED VIEW:');
+    console.log('═'.repeat(50));
+    
+    const getRubric = (window as any).getRubric;
+    if (typeof getRubric === 'function') {
+      const rubricResult = getRubric();
+      
+      if (rubricResult?.type === 'structured') {
+        const radioItems = rubricResult.items.filter((item: any) => 
+          item.itemType === 'RADIO' || (item.description && item.description.includes('Available options:')));
+        
+        if (radioItems.length === 0) {
+          console.log('⚪ No radio button groups found on this page');
+          return;
+        }
+        
+        console.log(`Found ${radioItems.length} radio button groups:`);
+        console.log('');
+        
+        radioItems.forEach((item: any, index: number) => {
+          console.log(`📻 GROUP ${index + 1}: ${item.id}`);
+          console.log(`Points: ${item.points}`);
+          
+          if (item.description) {
+            const lines = item.description.split('\n');
+            const title = lines[0].replace('📻 ', ''); // Remove emoji prefix if present
+            console.log(`Title: ${title}`);
+            
+            const optionLines = lines.filter((l: string) => l.includes('◦ '));
+            if (optionLines.length > 0) {
+              console.log('Available Options:');
+              optionLines.forEach((option: string, optIndex: number) => {
+                const cleanOption = option.replace(/^\s*◦\s*/, '').replace(/"/g, '');
+                console.log(`  ${optIndex + 1}. ${cleanOption}`);
+              });
+            }
+            
+            const selectedLine = lines.find((l: string) => l.includes('⭐ Currently selected:'));
+            if (selectedLine) {
+              const selected = selectedLine.replace(/^\s*⭐ Currently selected:\s*/, '').replace(/"/g, '');
+              console.log(`✅ Selected: ${selected}`);
+            } else {
+              console.log(`⚪ No selection made yet`);
+            }
+          }
+          
+          console.log('─'.repeat(30));
+        });
+        
+      } else {
+        console.log('❌ No structured rubric found on this page');
+      }
+    } else {
+      console.log('❌ Rubric system not available');
+    }
+    
+    console.log('═'.repeat(50));
+  };
   
   // Add function to scan expanded radio group for options
   (window as any).supergrader.scanExpandedRadioGroup = (group: Element, groupNumber: number) => {
@@ -3278,3 +3416,59 @@ initializeAPITesting();
     mo.observe(grp, { childList: true, subtree: true });
   });
 }; 
+
+(window as any).showRadioDiag = async () => {
+  const root = getInnerDoc();
+  const groups = Array.from(root.querySelectorAll('.rubricItemGroup'));
+  if (groups.length === 0) {
+    console.log('⚪ No radio groups detected');
+    return;
+  }
+  console.log(`📻 Inspecting ${groups.length} radio groups...`);
+
+  const expandIfNeeded = async (group: Element): Promise<void> => {
+    const btn = group.querySelector('button[aria-expanded="false"]');
+    if (btn) {
+      (btn as HTMLElement).click();
+      await new Promise(r => setTimeout(r, 350)); // wait for DOM render
+    }
+  };
+
+  for (let i = 0; i < groups.length; i++) {
+    const group = groups[i];
+    await expandIfNeeded(group);
+
+    // container with options
+    const headerId = group.querySelector('.rubricItemGroup--key')?.getAttribute('id');
+    let options: Element[] = [];
+    if (headerId) {
+      const container = root.querySelector(`[aria-describedby="${headerId}"]`);
+      if (container) options = Array.from(container.querySelectorAll('.rubricItem'));
+    }
+    if (options.length === 0) {
+      options = Array.from(group.querySelectorAll('.rubricItemGroup--rubricItems .rubricItem'));
+    }
+
+    // title
+    const title = group.querySelector('.rubricField-description')?.textContent?.trim() || `Group ${i+1}`;
+    console.log(`${i + 1}. ${title} — ${options.length} options`);
+
+    options.forEach((opt, idx) => {
+      const desc = opt.querySelector('.rubricField-description')?.textContent?.trim() || 'No desc';
+      const pts = opt.querySelector('.rubricField-points')?.textContent?.trim() || '';
+      const key = opt.querySelector('.rubricItem--key')?.textContent?.trim() || String.fromCharCode(65+idx);
+      const isSel = opt.querySelector('.rubricItem--key-applied');
+      const selMark = isSel ? '⭐' : '•';
+      console.log(`   ${selMark} ${key}: ${desc.substring(0,80)} ${pts}`);
+    });
+
+    // collapse back to minimize UI disruption
+    const btnCollapse = group.querySelector('button[aria-expanded="true"]');
+    if (btnCollapse) {
+      (btnCollapse as HTMLElement).click();
+      await new Promise(r => setTimeout(r, 150));
+    }
+  }
+
+  console.log('✅ Radio diagnostic complete');
+};

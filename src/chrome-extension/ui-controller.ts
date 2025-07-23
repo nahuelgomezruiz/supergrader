@@ -175,6 +175,7 @@ class UIController {
             <button class="ai-comprehensive-test-button" id="ai-comprehensive-test-button" style="background: #6f42c1; margin-top: 5px;">🚀 Comprehensive Rubric Test</button>
             <button class="ai-api-test-button" id="ai-api-test-button" style="background: #dc3545; margin-top: 5px;">🧪 Test API (Day 5)</button>
             <button class="ai-show-data-button" id="ai-show-data-button" style="background: #fd7e14; margin-top: 5px;">🔍 Show Rubric Data</button>
+            <button class="ai-radio-diag-button" id="ai-radio-diag-button" style="background: #20c997; margin-top: 5px;">🎛 Radio Options</button>
           </div>
           <div class="ai-options">
             <label class="ai-checkbox">
@@ -328,15 +329,26 @@ class UIController {
       }
 
       // Show rubric data button
-      const showDataButton = this.aiPanel.querySelector('#ai-show-data-button') as HTMLButtonElement;
-      if (showDataButton) {
-        showDataButton.addEventListener('click', () => {
+      const showDataBtn = this.aiPanel.querySelector('#ai-show-data-button') as HTMLButtonElement;
+      if (showDataBtn) {
+        showDataBtn.addEventListener('click', () => {
           try {
             console.log('🔍 UIController: Show rubric data button clicked');
             this.showRubricData();
           } catch (error) {
             console.error('UIController: Error showing rubric data', error);
             this.showError('Failed to show rubric data');
+          }
+        });
+      }
+
+      const radioDiagBtn = this.aiPanel.querySelector('#ai-radio-diag-button') as HTMLButtonElement;
+      if (radioDiagBtn) {
+        radioDiagBtn.addEventListener('click', () => {
+          if (typeof (window as any).showRadioDiag === 'function') {
+            (window as any).showRadioDiag();
+          } else {
+            this.showError('Radio diagnostic unavailable', 'info');
           }
         });
       }
@@ -1418,7 +1430,9 @@ class UIController {
     console.log('await supergrader.testRubric();        // API-based test');
     console.log('supergrader.testUnifiedRubric();       // DOM-based test'); 
     console.log('await supergrader.analyzeRubric();     // Detailed analysis');
-    console.log('await supergrader.getRubricItem(123);  // Get specific item\n');
+    console.log('await supergrader.getRubricItem(123);  // Get specific item');
+    console.log('supergrader.showRubricData();          // 🔍 Enhanced display with emojis');
+    console.log('supergrader.showRadioButtons();        // 📻 Radio buttons detailed view\n');
     
     console.log('// Apply grading (toggle items):');
     console.log('const success = applyGrade(rubric, "12345", true);  // select');
