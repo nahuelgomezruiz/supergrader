@@ -360,9 +360,10 @@ class GradescopeAPI {
             const text = (elem.querySelector('summary') || elem).textContent?.trim();
             if (text && this.isValidFileName(text)) {
                 const downloadBtn = this.findDownloadButton(elem);
+                const cleanedFileName = this.cleanFileName(text); // Use cleanFileName for consistency
                 files.push({
                     element: elem,
-                    fileName: text.replace(/^[▼▶\s]*/, '').trim(),
+                    fileName: cleanedFileName || undefined,
                     downloadLink: downloadBtn?.href || downloadBtn?.getAttribute('href') || undefined,
                     downloadButton: downloadBtn || undefined,
                     type: 'expandable-file'
@@ -400,8 +401,8 @@ class GradescopeAPI {
             parent.querySelector('h1, h2, h3, h4, h5, h6')?.textContent,
             parent.querySelector('[title]')?.getAttribute('title')
         ];
-        return candidates.find(text => text && this.isValidFileName(text))
-            ?.replace(/^[▼▶\s]*/, '').trim();
+        const validCandidate = candidates.find(text => text && this.isValidFileName(text));
+        return validCandidate ? (this.cleanFileName(validCandidate) || undefined) : undefined;
     }
     /**
      * Check if text looks like a valid filename
@@ -409,8 +410,14 @@ class GradescopeAPI {
     isValidFileName(text) {
         if (!text || text.length > 200)
             return false;
-        // Basic filename validation - avoid obvious non-files
-        const cleaned = text.trim().replace(/^[▼▶\s]*/, '');
+        // Clean the text using the same logic as cleanFileName for consistent validation
+        const cleaned = text
+            .replace(/^\s*[▼▶]\s*/, '') // Remove arrow indicators
+            .replace(/\s*Download\s*$/i, '') // Remove "Download" text
+            .replace(/\s*💬\s*\d+\s*Comments?\s*$/i, '') // Remove "💬 4 Comments"
+            .replace(/\s*\d+\s*Comments?\s*$/i, '') // Remove "4 Comments"
+            .replace(/\s*Comment[s]?\s*$/i, '') // Remove "Comment" or "Comments"
+            .trim();
         if (cleaned.length === 0)
             return false;
         // Skip obvious UI elements or non-file text
@@ -559,7 +566,13 @@ class GradescopeAPI {
     cleanFileName(name) {
         if (!name || name === 'unknown')
             return null;
-        return name.replace(/^\s*[▼▶]\s*/, '').replace(/\s*Download\s*$/, '').trim();
+        return name
+            .replace(/^\s*[▼▶]\s*/, '') // Remove arrow indicators
+            .replace(/\s*Download\s*$/i, '') // Remove "Download" text
+            .replace(/\s*💬\s*\d+\s*Comments?\s*$/i, '') // Remove "💬 4 Comments"
+            .replace(/\s*\d+\s*Comments?\s*$/i, '') // Remove "4 Comments"
+            .replace(/\s*Comment[s]?\s*$/i, '') // Remove "Comment" or "Comments"
+            .trim();
     }
     shouldProcessFile(fileName, metadata) {
         if (!fileName || fileName.length > 200) {
