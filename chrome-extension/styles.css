@@ -1,5 +1,24 @@
 /* supergrader Styles */
 
+/* Ensure parent containers allow full width expansion */
+.ai-grading-panel-container,
+.rubric-container,
+.question-container,
+.grade-container,
+.submission-header,
+.instructor-controls {
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+}
+
+/* Force full width for the panel regardless of container */
+#ai-gradescope-panel {
+  width: 100% !important;
+  max-width: none !important;
+  box-sizing: border-box !important;
+}
+
 .ai-grading-panel {
   background: #ffffff;
   border: 1px solid #4a90e2;
@@ -10,8 +29,12 @@
   font-size: 12px;
   z-index: 1000;
   position: relative;
-  max-width: 400px;
-  width: 400px;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 300px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   max-height: 200px;
   line-height: 1.1;
   overflow: hidden;
@@ -28,6 +51,7 @@
   border-radius: 3px 3px 0 0;
   min-height: 8px;
   font-size: 11px;
+  flex-shrink: 0;
 }
 
 .ai-panel-info {
@@ -64,6 +88,9 @@
   padding: 2px 6px;
   max-height: 160px;
   overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .ai-status-container {
@@ -117,6 +144,7 @@
 
 .ai-controls {
   margin-bottom: 4px;
+  flex-shrink: 0;
 }
 
 .ai-grade-button {
@@ -345,6 +373,7 @@
 @media (max-width: 768px) {
   .ai-grading-panel {
     margin: 8px 0;
+    min-width: 280px;
   }
   
   .ai-panel-content {
@@ -364,6 +393,24 @@
   .ai-grade-button {
     padding: 10px 20px;
     font-size: 13px;
+  }
+
+  .essential-buttons {
+    flex-direction: column !important;
+    gap: 4px !important;
+  }
+
+  .ai-show-data-button,
+  .ai-radio-diag-button {
+    flex: none !important;
+    width: 100% !important;
+  }
+}
+
+/* Medium screen adjustments */
+@media (max-width: 1024px) and (min-width: 769px) {
+  .ai-grading-panel {
+    min-width: 350px;
   }
 }
 
@@ -472,14 +519,18 @@
 }
 
 /* Test button styles - Week 2 Day 3-4: Rubric Parsing */
-.test-buttons {
-  margin-left: 10px !important;
+.essential-buttons {
   display: flex !important;
   gap: 8px !important;
+  justify-content: flex-start !important;
+  flex-wrap: wrap !important;
+  width: 100% !important;
 }
 
 .ai-test-button,
-.ai-rubric-button {
+.ai-rubric-button,
+.ai-show-data-button,
+.ai-radio-diag-button {
   border: none !important;
   color: white !important;
   padding: 8px 12px !important;
@@ -489,6 +540,9 @@
   font-weight: 500 !important;
   transition: all 0.2s ease !important;
   white-space: nowrap !important;
+  margin-top: 0 !important;
+  flex: 1 !important;
+  min-width: 120px !important;
 }
 
 .ai-test-button {
@@ -509,8 +563,28 @@
   transform: translateY(-1px) !important;
 }
 
+.ai-show-data-button {
+  background: #fd7e14 !important;
+}
+
+.ai-show-data-button:hover {
+  background: #e8690b !important;
+  transform: translateY(-1px) !important;
+}
+
+.ai-radio-diag-button {
+  background: #20c997 !important;
+}
+
+.ai-radio-diag-button:hover {
+  background: #1ba085 !important;
+  transform: translateY(-1px) !important;
+}
+
 .ai-test-button:disabled,
-.ai-rubric-button:disabled {
+.ai-rubric-button:disabled,
+.ai-show-data-button:disabled,
+.ai-radio-diag-button:disabled {
   opacity: 0.6 !important;
   cursor: not-allowed !important;
   transform: none !important;

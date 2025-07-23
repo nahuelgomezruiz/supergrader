@@ -103,11 +103,7 @@ class UIController {
         </div>
         <div class="ai-controls">
           <button class="ai-grade-button" id="ai-grade-button">Start AI Grading</button>
-          <div class="test-buttons" style="margin-left: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
-            <button class="ai-test-button" id="ai-test-button" style="background: #17a2b8;">🔧 Test File Download</button>
-            <button class="ai-rubric-button" id="ai-rubric-button" style="background: #28a745;">📝 Test Rubric</button>
-            <button class="ai-comprehensive-test-button" id="ai-comprehensive-test-button" style="background: #6f42c1; margin-top: 5px;">🚀 Comprehensive Rubric Test</button>
-            <button class="ai-api-test-button" id="ai-api-test-button" style="background: #dc3545; margin-top: 5px;">🧪 Test API (Day 5)</button>
+          <div class="essential-buttons" style="display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
             <button class="ai-show-data-button" id="ai-show-data-button" style="background: #fd7e14; margin-top: 5px;">🔍 Show Rubric Data</button>
             <button class="ai-radio-diag-button" id="ai-radio-diag-button" style="background: #20c997; margin-top: 5px;">🎛 Radio Options</button>
           </div>
@@ -194,62 +190,6 @@ class UIController {
                     catch (error) {
                         console.error('UIController: Error starting grading', error);
                         this.showError('Failed to start grading process');
-                    }
-                });
-            }
-            // Test button for file download testing
-            const testButton = this.aiPanel.querySelector('#ai-test-button');
-            if (testButton) {
-                testButton.addEventListener('click', () => {
-                    try {
-                        console.log('🔧 UIController: Test button clicked');
-                        this.testFileDownload();
-                    }
-                    catch (error) {
-                        console.error('UIController: Error testing file download', error);
-                        this.showError('Failed to test file download');
-                    }
-                });
-            }
-            // Rubric test button for Week 2 Day 3-4: Rubric Parsing
-            const rubricButton = this.aiPanel.querySelector('#ai-rubric-button');
-            if (rubricButton) {
-                rubricButton.addEventListener('click', () => {
-                    try {
-                        console.log('📝 UIController: Rubric test button clicked');
-                        this.testRubric();
-                    }
-                    catch (error) {
-                        console.error('UIController: Error testing rubric', error);
-                        this.showError('Failed to test rubric parsing');
-                    }
-                });
-            }
-            // Comprehensive rubric test button
-            const comprehensiveTestButton = this.aiPanel.querySelector('#ai-comprehensive-test-button');
-            if (comprehensiveTestButton) {
-                comprehensiveTestButton.addEventListener('click', () => {
-                    try {
-                        console.log('🚀 UIController: Comprehensive rubric test button clicked');
-                        this.testRubricComprehensive();
-                    }
-                    catch (error) {
-                        console.error('UIController: Error running comprehensive rubric test', error);
-                        this.showError('Failed to run comprehensive rubric test');
-                    }
-                });
-            }
-            // API testing button (Week 2 Day 5)
-            const apiTestButton = this.aiPanel.querySelector('#ai-api-test-button');
-            if (apiTestButton) {
-                apiTestButton.addEventListener('click', () => {
-                    try {
-                        console.log('🧪 UIController: API test button clicked');
-                        this.testAPI();
-                    }
-                    catch (error) {
-                        console.error('UIController: Error running API test', error);
-                        this.showError('Failed to run API test');
                     }
                 });
             }
