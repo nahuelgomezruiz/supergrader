@@ -135,7 +135,7 @@ class ChromeGradingService {
     /**
      * Extract nested checkboxes from a group (like Program Design)
      */
-    async extractNestedCheckboxes(groupElement, parentDescription) {
+    async extractNestedCheckboxes(groupElement, parentId, parentDescription) {
         const items = [];
         // Expand the group if needed
         const expandBtn = groupElement.querySelector('button[aria-expanded="false"]');
@@ -154,7 +154,7 @@ class ChromeGradingService {
                 container = getGradingDoc().getElementById(controlsId);
             }
         }
-        console.log(`🔍 Looking for nested items in group ${parentDescription}:`, {
+        console.log(`🔍 Looking for nested items in group ${parentId} (${parentDescription}):`, {
             foundContainer: !!container,
             containerClass: container?.className,
             directChildren: groupElement.querySelectorAll('.rubricItem').length
@@ -165,7 +165,8 @@ class ChromeGradingService {
             const descEl = elem.querySelector('.rubricField-description');
             const pointsEl = elem.querySelector('.rubricField-points');
             if (keyEl && descEl) {
-                const itemId = keyEl.textContent?.trim() || `${parentDescription}_${index}`;
+                const childId = keyEl.textContent?.trim() || `${index}`;
+                const itemId = `${parentId}-${childId}`; // Create hierarchical ID like "1-Q"
                 // Extract text with proper spacing for list items
                 let description = this.extractTextWithSpacing(descEl);
                 description = description.replace(/^Grading comment:\s*/i, '').trim();
@@ -275,7 +276,7 @@ class ChromeGradingService {
             if (isNestedGroup && !isRadio) {
                 // This is a nested checkbox group - expand it and extract individual items
                 console.log(`📦 Expanding nested checkbox group: ${item.id} - ${cleanDescription}`);
-                const nestedItems = await this.extractNestedCheckboxes(item.element, cleanDescription);
+                const nestedItems = await this.extractNestedCheckboxes(item.element, item.id, cleanDescription);
                 console.log(`  ✅ Extracted ${nestedItems.length} nested items`);
                 backendItems.push(...nestedItems);
             }
