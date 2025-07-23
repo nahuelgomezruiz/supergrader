@@ -34,7 +34,7 @@ chrome.runtime.onInstalled.addListener((details: chrome.runtime.InstalledDetails
   const defaultSettings: Settings = {
     confidenceThreshold: 0.8,
     autoApplyHighConfidence: false,
-    backendUrl: 'http://localhost:3000',
+    backendUrl: 'http://localhost:8000',
     enabledForAssignment: true
   };
   

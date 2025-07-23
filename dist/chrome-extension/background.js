@@ -11,7 +11,7 @@ chrome.runtime.onInstalled.addListener((details) => {
     const defaultSettings = {
         confidenceThreshold: 0.8,
         autoApplyHighConfidence: false,
-        backendUrl: 'http://localhost:3000',
+        backendUrl: 'http://localhost:8000',
         enabledForAssignment: true
     };
     chrome.storage.sync.set(defaultSettings, () => {

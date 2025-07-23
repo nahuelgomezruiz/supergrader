@@ -32,7 +32,13 @@ class Settings(BaseSettings):
     max_file_size: int = 100_000  # Max characters per file
     
     # CORS Settings
-    cors_origins: list[str] = ["http://localhost:3000", "chrome-extension://*"]
+    # List of exact origins (mostly for local dev)
+    cors_origins: list[str] = [
+        "http://localhost:8000",
+    ]
+
+    # Regex for wildcard origins (allow all subdomains of Gradescope)
+    cors_origin_regex: str = r"https://.*\.gradescope\.com"
     
     model_config = SettingsConfigDict(
         env_file=".env",
