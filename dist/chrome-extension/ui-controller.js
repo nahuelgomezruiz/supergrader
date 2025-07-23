@@ -183,9 +183,9 @@ class UIController {
             // Grade button with enhanced functionality
             const gradeButton = this.aiPanel.querySelector('#ai-grade-button');
             if (gradeButton) {
-                gradeButton.addEventListener('click', () => {
+                gradeButton.addEventListener('click', async () => {
                     try {
-                        this.startEnhancedGrading();
+                        await this.startEnhancedGrading();
                     }
                     catch (error) {
                         console.error('UIController: Error starting grading', error);
@@ -237,9 +237,9 @@ class UIController {
         }
     }
     /**
-     * Enhanced grading process with better feedback
+     * Enhanced grading process with backend integration
      */
-    startEnhancedGrading() {
+    async startEnhancedGrading() {
         console.log('UIController: Starting enhanced grading process...');
         if (!this.aiPanel)
             return;
@@ -253,37 +253,75 @@ class UIController {
         }
         // Update UI state
         button.disabled = true;
-        button.textContent = 'Processing...';
+        button.textContent = 'Initializing...';
         progress.style.display = 'block';
         this.hideError();
-        // Enhanced progress simulation with multiple stages
-        const stages = [
-            { progress: 10, text: 'Extracting source files...' },
-            { progress: 25, text: 'Parsing rubric structure...' },
-            { progress: 50, text: 'Analyzing code with AI...' },
-            { progress: 75, text: 'Generating feedback...' },
-            { progress: 90, text: 'Applying decisions...' },
-            { progress: 100, text: 'Complete!' }
-        ];
-        let currentStage = 0;
-        const updateProgress = () => {
-            if (currentStage < stages.length) {
-                const stage = stages[currentStage];
-                progressFill.style.width = `${stage.progress}%`;
-                progressText.textContent = stage.text;
-                console.log(`UIController: ${stage.text} (${stage.progress}%)`);
-                currentStage++;
-                setTimeout(updateProgress, 800 + Math.random() * 400); // Variable timing
+        try {
+            // Get backend URL from storage or use default
+            const settings = await chrome.storage.sync.get(['backendUrl']);
+            const backendUrl = settings.backendUrl || 'http://localhost:8000';
+            console.log('UIController: Using backend URL:', backendUrl);
+            // Use the standalone grading service
+            const ChromeGradingService = window.ChromeGradingService;
+            if (!ChromeGradingService) {
+                throw new Error('ChromeGradingService not loaded');
             }
-            else {
-                // Complete
-                setTimeout(() => {
-                    this.completeGrading(button, progress);
-                }, 1000);
-            }
-        };
-        // Start progress
-        updateProgress();
+            // Create grading service
+            const gradingService = new ChromeGradingService(backendUrl);
+            // Update progress text
+            progressFill.style.width = '5%';
+            progressText.textContent = 'Extracting rubric structure...';
+            // Start grading with progress callback
+            await gradingService.gradeSubmission((event) => {
+                console.log('UIController: Grading event', event);
+                if (event.type === 'partial_result' && event.progress !== undefined) {
+                    // Update progress bar
+                    const percent = Math.round(event.progress * 100);
+                    progressFill.style.width = `${percent}%`;
+                    progressText.textContent = `Grading rubric items... ${percent}%`;
+                    // Log the decision
+                    if (event.decision) {
+                        console.log(`✅ Graded ${event.rubric_item_id}:`, {
+                            confidence: `${(event.decision.confidence * 100).toFixed(1)}%`,
+                            verdict: event.decision.verdict
+                        });
+                        // Apply decision if auto-apply is enabled and confidence is high
+                        chrome.storage.sync.get(['autoApplyHighConfidence', 'confidenceThreshold'], async (settings) => {
+                            if (settings.autoApplyHighConfidence &&
+                                event.decision &&
+                                event.decision.confidence >= (settings.confidenceThreshold || 0.8)) {
+                                try {
+                                    await gradingService.applyGradingDecision(event.decision);
+                                    console.log(`✅ Auto-applied decision for ${event.rubric_item_id}`);
+                                }
+                                catch (error) {
+                                    console.error(`❌ Failed to auto-apply decision for ${event.rubric_item_id}:`, error);
+                                }
+                            }
+                        });
+                    }
+                }
+                else if (event.type === 'job_complete') {
+                    // Complete
+                    progressFill.style.width = '100%';
+                    progressText.textContent = 'Grading completed!';
+                    setTimeout(() => {
+                        this.completeGrading(button, progress);
+                    }, 1500);
+                }
+                else if (event.type === 'error') {
+                    throw new Error(event.error || 'Unknown grading error');
+                }
+            });
+        }
+        catch (error) {
+            console.error('UIController: Grading error', error);
+            this.showError(`Grading failed: ${error.message}`);
+            // Reset UI
+            button.disabled = false;
+            button.textContent = 'Start AI Grading';
+            progress.style.display = 'none';
+        }
     }
     /**
      * Complete the grading process and reset UI

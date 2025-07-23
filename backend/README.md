@@ -33,12 +33,6 @@ backend/
 
 ### 1. Environment Configuration
 
-Copy `env.example` to `.env` and configure:
-
-```bash
-cp env.example .env
-```
-
 Key settings:
 - `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`: Your LLM provider API key
 - `LLM_PROVIDER`: Choose "openai" or "anthropic"
@@ -97,7 +91,7 @@ Example request:
     {
       "id": "RbA3C2",
       "description": "Proper error handling for edge cases",
-      "points": -2,
+      "points": 2,
       "type": "CHECKBOX"
     },
     {
@@ -106,9 +100,9 @@ Example request:
       "points": 0,
       "type": "RADIO",
       "options": {
-        "excellent": "Excellent (0 pts)",
-        "good": "Good (-1 pt)",
-        "poor": "Poor (-2 pts)"
+        "The code follows all style guide": "2 pts",
+        "The student made <3 style mistakes": "1 pts",
+        "The student made 3+ style mistakes": "0 pts"
       }
     }
   ]

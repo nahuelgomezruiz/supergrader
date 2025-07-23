@@ -39,7 +39,7 @@ interface PageMetadata {
 
 // Configuration
 const CONFIG: Config = {
-  BACKEND_URL: 'http://localhost:3000', // Will be configurable later
+  BACKEND_URL: 'http://localhost:8000', // Will be configurable later
   CONFIDENCE_THRESHOLD: 0.8,
   MAX_RETRIES: 3,
   RETRY_DELAY: 1000 // 1 second
@@ -446,6 +446,96 @@ function performHealthCheck(): void {
     initializeExtension().catch(console.error);
   }
 }
+
+/**
+ * Handle grading request from popup
+ */
+async function handleGradingRequest(backendUrl: string): Promise<void> {
+  console.log('Content: Starting grading with backend:', backendUrl);
+  
+  try {
+    // Use the standalone grading service
+    const ChromeGradingService = (window as any).ChromeGradingService;
+    if (!ChromeGradingService) {
+      throw new Error('ChromeGradingService not loaded');
+    }
+    
+    // Create grading service
+    const gradingService = new ChromeGradingService(backendUrl);
+    
+    // Start grading with progress callback
+    await gradingService.gradeSubmission((event: any) => {
+      console.log('Content: Grading event', event);
+      
+      // Send progress updates to popup
+      if (event.type === 'partial_result') {
+        chrome.runtime.sendMessage({
+          action: 'gradingProgress',
+          progress: event.progress || 0,
+          rubricItemId: event.rubric_item_id,
+          decision: event.decision
+        });
+      } else if (event.type === 'job_complete') {
+        chrome.runtime.sendMessage({
+          action: 'gradingComplete',
+          message: event.message
+        });
+      } else if (event.type === 'error') {
+        chrome.runtime.sendMessage({
+          action: 'gradingError',
+          error: event.error
+        });
+      }
+    });
+    
+  } catch (error) {
+    console.error('Content: Error in grading process', error);
+    chrome.runtime.sendMessage({
+      action: 'gradingError',
+      error: (error as Error).message
+    });
+    throw error;
+  }
+}
+
+// Listen for messages from popup or background script
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  console.log('Content: Received message', request);
+  
+  switch (request.action) {
+    case 'getState':
+      sendResponse({ state: appState });
+      break;
+      
+    case 'settingsUpdated':
+      console.log('Content: Settings updated', request.settings);
+      // Apply new settings if needed
+      if (request.settings?.confidenceThreshold) {
+        CONFIG.CONFIDENCE_THRESHOLD = request.settings.confidenceThreshold;
+      }
+      sendResponse({ success: true });
+      break;
+      
+    case 'startGrading':
+      console.log('Content: Starting grading process...');
+      handleGradingRequest(request.backendUrl || CONFIG.BACKEND_URL)
+        .then(() => {
+          sendResponse({ success: true });
+        })
+        .catch(error => {
+          console.error('Content: Grading error', error);
+          sendResponse({ success: false, error: (error as Error).message });
+        });
+      // Return true to indicate async response
+      return true;
+      
+    default:
+      sendResponse({ success: false, error: 'Unknown action' });
+  }
+  
+  // Return false for synchronous responses
+  return false;
+});
 
 /**
  * Handle page navigation and dynamic content changes

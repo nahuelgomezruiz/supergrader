@@ -56,6 +56,10 @@ declare function setupGlobalState(state: EnhancedState, api: any, ui: any): void
  */
 declare function performHealthCheck(): void;
 /**
+ * Handle grading request from popup
+ */
+declare function handleGradingRequest(backendUrl: string): Promise<void>;
+/**
  * Handle page navigation and dynamic content changes
  */
 declare function setupNavigationHandler(): void;

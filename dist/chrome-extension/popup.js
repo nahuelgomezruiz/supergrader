@@ -8,6 +8,7 @@ let thresholdInput;
 let enabledToggle;
 let settingsBtn;
 let helpBtn;
+let gradeBtn;
 /**
  * Initialize popup when DOM is ready
  */
@@ -20,6 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
     enabledToggle = document.getElementById('enabledToggle');
     settingsBtn = document.getElementById('settingsBtn');
     helpBtn = document.getElementById('helpBtn');
+    gradeBtn = document.getElementById('gradeBtn');
     // Validate required elements exist
     if (!statusDiv || !autoApplyToggle || !thresholdInput || !enabledToggle) {
         console.error('Popup: Required DOM elements not found');
@@ -220,6 +222,44 @@ function setupEventListeners() {
             }
         });
     }
+    // Grade button
+    if (gradeBtn) {
+        gradeBtn.addEventListener('click', async () => {
+            console.log('Popup: Grade button clicked');
+            if (!gradeBtn || !statusDiv)
+                return;
+            // Check if we're on a grading page
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            if (!tab?.id || !tab.url?.includes('/grade')) {
+                updateStatus('Must be on a Gradescope grading page', 'error');
+                return;
+            }
+            // Disable button and show progress
+            gradeBtn.disabled = true;
+            gradeBtn.textContent = '⏳ Grading in progress...';
+            updateStatus('Starting AI grading process...', 'ready');
+            try {
+                // Send message to content script to start grading
+                const response = await chrome.tabs.sendMessage(tab.id, {
+                    action: 'startGrading',
+                    backendUrl: 'http://localhost:8000' // TODO: Make this configurable
+                });
+                if (response?.success) {
+                    console.log('Popup: Grading started successfully');
+                }
+                else {
+                    throw new Error(response?.error || 'Unknown error');
+                }
+            }
+            catch (error) {
+                console.error('Popup: Error starting grading', error);
+                updateStatus(`Error: ${error.message}`, 'error');
+                // Reset button
+                gradeBtn.disabled = false;
+                gradeBtn.textContent = '🤖 Grade with AI';
+            }
+        });
+    }
     // Action buttons
     if (settingsBtn) {
         settingsBtn.addEventListener('click', () => {
@@ -270,6 +310,35 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
             loadSettings().catch(error => {
                 console.error('Popup: Error reloading settings', error);
             });
+            sendResponse({ success: true });
+            break;
+        case 'gradingProgress':
+            // Update UI based on grading progress
+            if (request.progress !== undefined) {
+                const progressPercent = Math.round(request.progress * 100);
+                updateStatus(`Grading progress: ${progressPercent}%`, 'ready');
+                if (gradeBtn) {
+                    gradeBtn.textContent = `⏳ Grading... ${progressPercent}%`;
+                }
+            }
+            sendResponse({ success: true });
+            break;
+        case 'gradingComplete':
+            // Grading finished
+            updateStatus('Grading completed successfully!', 'ready');
+            if (gradeBtn) {
+                gradeBtn.disabled = false;
+                gradeBtn.textContent = '🤖 Grade with AI';
+            }
+            sendResponse({ success: true });
+            break;
+        case 'gradingError':
+            // Grading error
+            updateStatus(`Grading error: ${request.error || 'Unknown error'}`, 'error');
+            if (gradeBtn) {
+                gradeBtn.disabled = false;
+                gradeBtn.textContent = '🤖 Grade with AI';
+            }
             sendResponse({ success: true });
             break;
         default:

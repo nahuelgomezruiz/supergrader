@@ -72,7 +72,7 @@ declare class UIController {
      */
     private setupEnhancedEventListeners;
     /**
-     * Enhanced grading process with better feedback
+     * Enhanced grading process with backend integration
      */
     private startEnhancedGrading;
     /**

@@ -5,10 +5,13 @@ interface Settings {
     backendUrl?: string;
 }
 interface PopupMessage {
-    action: 'updateStatus' | string;
+    action: 'updateStatus' | 'gradingProgress' | 'gradingComplete' | 'gradingError' | string;
     status?: string;
     type?: 'ready' | 'not-ready' | 'error';
     settings?: Settings;
+    progress?: number;
+    error?: string;
+    message?: string;
 }
 declare let statusDiv: HTMLElement | null;
 declare let autoApplyToggle: HTMLElement | null;
@@ -16,6 +19,7 @@ declare let thresholdInput: HTMLInputElement | null;
 declare let enabledToggle: HTMLElement | null;
 declare let settingsBtn: HTMLButtonElement | null;
 declare let helpBtn: HTMLButtonElement | null;
+declare let gradeBtn: HTMLButtonElement | null;
 /**
  * Initialize popup functionality
  */
