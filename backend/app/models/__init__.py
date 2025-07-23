@@ -74,7 +74,7 @@ class CheckboxVerdict(BaseModel):
     """LLM verdict for a checkbox rubric item."""
     decision: RubricDecision
     evidence: Evidence
-    comment: str = Field(..., description="Feedback comment for the student")
+    comment: Optional[str] = Field(default="", description="Feedback comment for the student")
     confidence: int = Field(..., ge=0, le=100, description="Confidence percentage")
 
 
@@ -82,7 +82,7 @@ class RadioVerdict(BaseModel):
     """LLM verdict for a radio rubric item."""
     selected_option: str = Field(..., description="The selected option key")
     evidence: Evidence
-    comment: str = Field(..., description="Feedback comment for the student")
+    comment: Optional[str] = Field(default="", description="Feedback comment for the student")
     confidence: int = Field(..., ge=0, le=100, description="Confidence percentage")
 
 

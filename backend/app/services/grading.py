@@ -89,11 +89,21 @@ class GradingService:
         # Wait for all evaluations
         verdicts = await asyncio.gather(*tasks, return_exceptions=True)
         
-        # Filter out exceptions
-        valid_verdicts = [v for v in verdicts if not isinstance(v, Exception)]
+        # Filter out exceptions and log them
+        valid_verdicts = []
+        failed_count = 0
+        for i, result in enumerate(verdicts):
+            if isinstance(result, Exception):
+                failed_count += 1
+                print(f"❌ LLM call {i+1} failed for rubric item {rubric_item.id}: {type(result).__name__}: {result}")
+            else:
+                valid_verdicts.append(result)
+        
+        print(f"📊 Rubric item {rubric_item.id}: {len(valid_verdicts)}/{len(verdicts)} LLM calls succeeded")
         
         if not valid_verdicts:
             # All calls failed, return low-confidence decision
+            print(f"⚠️ All LLM calls failed for rubric item {rubric_item.id}, using fallback decision")
             return self._create_fallback_decision(rubric_item)
         
         # Perform majority voting

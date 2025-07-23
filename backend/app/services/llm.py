@@ -49,21 +49,27 @@ class LLMService:
     ) -> Union[CheckboxVerdict, RadioVerdict]:
         """Evaluate a single rubric item using the LLM."""
         
-        # Prepare the prompt based on rubric type
-        if rubric_type == RubricType.CHECKBOX:
-            prompt = self._build_checkbox_prompt(
-                rubric_description, rubric_points, source_files, language
-            )
-        else:
-            prompt = self._build_radio_prompt(
-                rubric_description, rubric_options, source_files, language
-            )
-        
-        # Call the LLM
-        response = await self._call_llm(prompt)
-        
-        # Parse the response
-        return self._parse_response(response, rubric_type)
+        try:
+            # Prepare the prompt based on rubric type
+            if rubric_type == RubricType.CHECKBOX:
+                prompt = self._build_checkbox_prompt(
+                    rubric_description, rubric_points, source_files, language
+                )
+            else:
+                prompt = self._build_radio_prompt(
+                    rubric_description, rubric_options, source_files, language
+                )
+            
+            # Call the LLM
+            response = await self._call_llm(prompt)
+            
+            # Parse the response
+            return self._parse_response(response, rubric_type)
+            
+        except Exception as e:
+            print(f"🚨 LLM evaluation failed: {type(e).__name__}: {e}")
+            print(f"🔍 Context: rubric_type={rubric_type}, description='{rubric_description[:50]}...'")
+            raise
     
     def _build_checkbox_prompt(
         self,
@@ -159,28 +165,37 @@ Remember: think internally first, then output **only** the JSON block."""
     async def _call_llm(self, prompt: str) -> str:
         """Call the LLM with the prompt."""
         
-        if self.provider == "openai":
-            response = await self.client.chat.completions.create(
-                model=settings.llm_model,
-                messages=[
-                    {"role": "system", "content": "You are an expert code grader."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=settings.llm_temperature,
-                max_tokens=settings.llm_max_tokens,
-                timeout=settings.llm_timeout
-            )
-            return response.choices[0].message.content
-        
-        elif self.provider == "anthropic":
-            response = await self.client.messages.create(
-                model=settings.llm_model,
-                messages=[{"role": "user", "content": prompt}],
-                system="You are an expert code grader.",
-                temperature=settings.llm_temperature,
-                max_tokens=settings.llm_max_tokens
-            )
-            return response.content[0].text
+        try:
+            if self.provider == "openai":
+                response = await self.client.chat.completions.create(
+                    model=settings.llm_model,
+                    messages=[
+                        {"role": "system", "content": "You are an expert code grader."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=settings.llm_temperature,
+                    max_tokens=settings.llm_max_tokens,
+                    timeout=settings.llm_timeout
+                )
+                return response.choices[0].message.content
+            
+            elif self.provider == "anthropic":
+                response = await self.client.messages.create(
+                    model=settings.llm_model,
+                    messages=[{"role": "user", "content": prompt}],
+                    system="You are an expert code grader.",
+                    temperature=settings.llm_temperature,
+                    max_tokens=settings.llm_max_tokens
+                )
+                return response.content[0].text
+                
+        except Exception as e:
+            print(f"🚨 LLM API call failed ({self.provider}): {type(e).__name__}: {e}")
+            if hasattr(e, 'status_code'):
+                print(f"🔍 HTTP Status: {e.status_code}")
+            if hasattr(e, 'response') and hasattr(e.response, 'text'):
+                print(f"🔍 Response: {e.response.text[:200]}...")
+            raise
     
     def _parse_response(
         self,
@@ -189,23 +204,41 @@ Remember: think internally first, then output **only** the JSON block."""
     ) -> Union[CheckboxVerdict, RadioVerdict]:
         """Parse LLM response into appropriate verdict model."""
         
-        # Extract JSON from response
-        json_start = response.find("```json")
-        json_end = response.rfind("```")
-        
-        if json_start != -1 and json_end != -1:
-            json_str = response[json_start + 7:json_end].strip()
-        else:
-            # Try to parse the entire response as JSON
-            json_str = response.strip()
-        
         try:
-            data = json.loads(json_str)
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Failed to parse LLM response as JSON: {e}")
-        
-        # Create appropriate verdict model
-        if rubric_type == RubricType.CHECKBOX:
-            return CheckboxVerdict(**data)
-        else:
-            return RadioVerdict(**data) 
+            # Extract JSON from response
+            json_start = response.find("```json")
+            json_end = response.rfind("```")
+            
+            if json_start != -1 and json_end != -1:
+                json_str = response[json_start + 7:json_end].strip()
+            else:
+                # Try to parse the entire response as JSON
+                json_str = response.strip()
+            
+            try:
+                data = json.loads(json_str)
+            except json.JSONDecodeError as e:
+                print(f"🚨 JSON parsing failed: {e}")
+                print(f"🔍 Attempted to parse: {json_str[:200]}...")
+                print(f"🔍 Full response: {response[:500]}...")
+                raise ValueError(f"Failed to parse LLM response as JSON: {e}")
+            
+            # Log the parsed data for debugging validation errors
+            print(f"🔍 Parsed JSON data: {data}")
+            
+            # Handle null comment values (convert to empty string)
+            if data.get('comment') is None:
+                data['comment'] = ""
+                print(f"🔧 Converted null comment to empty string")
+            
+            # Create appropriate verdict model
+            if rubric_type == RubricType.CHECKBOX:
+                return CheckboxVerdict(**data)
+            else:
+                return RadioVerdict(**data)
+                
+        except Exception as e:
+            print(f"🚨 Response parsing failed: {type(e).__name__}: {e}")
+            print(f"🔍 Rubric type: {rubric_type}")
+            print(f"🔍 Response length: {len(response)} chars")
+            raise 
