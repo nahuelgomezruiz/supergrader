@@ -48,7 +48,7 @@ declare class ChromeGradingService {
      */
     private extractRubricFromDOM;
     /**
-     * Extract text content with proper spacing between elements
+     * Extract text content with proper spacing and bullet point preservation
      */
     private extractTextWithSpacing;
     /**

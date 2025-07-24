@@ -53,7 +53,7 @@ class ChromeGradingService {
             const pointsEl = group.querySelector('.rubricField-points');
             if (keyBtn && descEl) {
                 const id = keyBtn.textContent?.trim() || `group_${items.length}`;
-                const description = descEl.textContent?.trim() || '';
+                const description = this.extractTextWithSpacing(descEl);
                 const pointsText = pointsEl?.textContent?.trim() || '0';
                 const points = parseFloat(pointsText.replace(/[^\d.-]/g, '')) || 0;
                 // Check if it's "Select one" (radio) or "Select many" (checkbox group)
@@ -75,7 +75,7 @@ class ChromeGradingService {
             const pointsEl = item.querySelector('.rubricField-points');
             if (keyBtn && descEl) {
                 const id = keyBtn.textContent?.trim() || `item_${items.length}`;
-                const description = descEl.textContent?.trim() || '';
+                const description = this.extractTextWithSpacing(descEl);
                 const pointsText = pointsEl?.textContent?.trim() || '0';
                 const points = parseFloat(pointsText.replace(/[^\d.-]/g, '')) || 0;
                 items.push({
@@ -90,47 +90,75 @@ class ChromeGradingService {
         return { type: 'structured', items };
     }
     /**
-     * Extract text content with proper spacing between elements
+     * Extract text content with proper spacing and bullet point preservation
      */
     extractTextWithSpacing(element) {
         let text = '';
         // Walk through all child nodes
-        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
-            acceptNode: (node) => {
-                // Accept all text nodes and certain elements
-                if (node.nodeType === Node.TEXT_NODE) {
-                    return NodeFilter.FILTER_ACCEPT;
-                }
-                if (node.nodeType === Node.ELEMENT_NODE) {
-                    const tagName = node.tagName.toLowerCase();
-                    // Add spacing for block elements and list items
-                    if (['li', 'p', 'div', 'br'].includes(tagName)) {
-                        return NodeFilter.FILTER_ACCEPT;
-                    }
-                }
-                return NodeFilter.FILTER_SKIP;
-            }
-        });
+        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, null);
         let node;
+        let insideList = false;
         while (node = walker.nextNode()) {
             if (node.nodeType === Node.TEXT_NODE) {
                 const textContent = node.textContent?.trim();
                 if (textContent) {
-                    text += textContent + ' ';
-                }
-            }
-            else if (node.nodeType === Node.ELEMENT_NODE) {
-                const element = node;
-                if (element.tagName.toLowerCase() === 'li') {
-                    // Add space before list items to separate them
-                    if (text && !text.endsWith(' ')) {
+                    // Add bullet point prefix if we're inside a list item
+                    if (insideList && text && !text.endsWith('\n') && !text.endsWith('• ')) {
+                        text += '• ';
+                    }
+                    text += textContent;
+                    // Add space after text unless it ends with punctuation
+                    if (!textContent.match(/[.!?:]$/)) {
                         text += ' ';
                     }
                 }
             }
+            else if (node.nodeType === Node.ELEMENT_NODE) {
+                const element = node;
+                const tagName = element.tagName.toLowerCase();
+                // Handle different structural elements
+                switch (tagName) {
+                    case 'li':
+                        // Start of list item - add newline and bullet
+                        if (text && !text.endsWith('\n')) {
+                            text += '\n';
+                        }
+                        text += '• ';
+                        insideList = true;
+                        break;
+                    case 'ul':
+                    case 'ol':
+                        // List container - add spacing
+                        if (text && !text.endsWith('\n')) {
+                            text += '\n';
+                        }
+                        break;
+                    case 'p':
+                    case 'div':
+                        // Paragraph - add line break if needed
+                        if (text && !text.endsWith('\n') && text.trim().length > 0) {
+                            text += '\n';
+                        }
+                        break;
+                    case 'br':
+                        // Line break
+                        text += '\n';
+                        break;
+                }
+                // Reset list flag when exiting list item
+                if (tagName === 'li' && walker.currentNode === element && walker.nextNode() &&
+                    !walker.currentNode.parentElement?.closest('li')) {
+                    insideList = false;
+                }
+            }
         }
-        // Clean up extra spaces
-        return text.replace(/\s+/g, ' ').trim();
+        // Clean up formatting
+        return text
+            .replace(/\n\s*\n/g, '\n') // Remove empty lines
+            .replace(/\s+/g, ' ') // Normalize spaces
+            .replace(/\n /g, '\n') // Remove spaces after newlines
+            .replace(/• +/g, '• ') // Normalize bullet spacing
+            .trim();
     }
     /**
      * Extract nested checkboxes from a group (like Program Design)
