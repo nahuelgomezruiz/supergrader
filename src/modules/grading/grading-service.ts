@@ -228,7 +228,50 @@ export class GradingService {
           return [path, content];
         })
       ),
-      rubric_items: backendRubricItems.sort((a, b) => a.id.localeCompare(b.id))
+      rubric_items: backendRubricItems.sort((a, b) => {
+        // QWERTY keyboard order for letter suffixes (matches Gradescope UI)
+        const qwertyOrder = 'QWERTYUIOPASDFGHJKLZXCVBNM';
+        
+        // Custom sort to put ID "0" after ID "9" 
+        if (a.id === "0" && b.id === "9") return 1;  // 0 comes after 9
+        if (a.id === "9" && b.id === "0") return -1; // 9 comes before 0
+        
+        // Check if IDs are hierarchical (e.g., "6-Q", "6-W")
+        const aMatch = a.id.match(/^(\d+)-([A-Z])$/);
+        const bMatch = b.id.match(/^(\d+)-([A-Z])$/);
+        
+        if (aMatch && bMatch) {
+          const [, aNum, aLetter] = aMatch;
+          const [, bNum, bLetter] = bMatch;
+          
+          // First compare the numeric part
+          const numDiff = parseInt(aNum) - parseInt(bNum);
+          if (numDiff !== 0) return numDiff;
+          
+          // If numeric parts are equal, compare letters by QWERTY order
+          const aLetterIndex = qwertyOrder.indexOf(aLetter);
+          const bLetterIndex = qwertyOrder.indexOf(bLetter);
+          return aLetterIndex - bLetterIndex;
+        }
+        
+        // For single digit IDs, treat "0" as if it were "9.5" 
+        const getNumericValue = (id: string) => {
+          if (id === "0") return 9.5;
+          const num = parseInt(id);
+          return isNaN(num) ? Infinity : num;
+        };
+        
+        const aNum = getNumericValue(a.id);
+        const bNum = getNumericValue(b.id);
+        
+        // If both are numeric (including our special "0" case)
+        if (aNum !== Infinity && bNum !== Infinity) {
+          return aNum - bNum;
+        }
+        
+        // Otherwise use normal string comparison
+        return a.id.localeCompare(b.id);
+      })
     };
 
     console.log('📤 Sending grading request to backend...');
