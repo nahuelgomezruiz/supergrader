@@ -193,32 +193,44 @@ class ChromeGradingService {
   }
 
   /**
-   * Enhanced extraction that properly handles list structures **in order**
+   * Enhanced extraction that properly handles list structures **in order** and preserves newlines
    */
   private extractTextFromLists(element: Element): string {
-    const parts: string[] = [];
+    let result = '';
 
-    // Helper to process nodes recursively while preserving order
     const processNode = (node: Node): void => {
       if (node.nodeType === Node.TEXT_NODE) {
         const txt = node.textContent?.trim();
-        if (txt) parts.push(txt);
+        if (txt) {
+          // Append text with a space if previous char isn't whitespace or newline
+          if (result && !result.match(/[\s\n]$/)) {
+            result += ' ';
+          }
+          result += txt;
+        }
       } else if (node.nodeType === Node.ELEMENT_NODE) {
-        const el = node as Element;
+        const el = node as HTMLElement;
         const tag = el.tagName.toLowerCase();
 
-        if (tag === 'ul' || tag === 'ol') {
-          // Handle immediate list items only (preserve nesting order)
+        if (tag === 'br') {
+          result += '\n';
+        } else if (tag === 'ul' || tag === 'ol') {
+          // Iterate over direct li children in order
           const lis = Array.from(el.querySelectorAll(':scope > li'));
-          lis.forEach(li => {
-            const liTxt = li.textContent?.trim();
-            if (liTxt) parts.push(`• ${liTxt}`);
+          lis.forEach((li, idx) => {
+            // Start each bullet on a new line except maybe first if newline already exists
+            if (result && !result.endsWith('\n')) {
+              result += '\n';
+            }
+            result += `• ${li.textContent?.trim()}`;
+            if (idx < lis.length - 1) {
+              result += '\n';
+            }
           });
-        } else if (tag === 'br') {
-          // Replace <br> with a space
-          parts.push(' ');
+          // Add newline after list end
+          result += '\n';
         } else {
-          // Recurse into other elements
+          // Recurse through children to keep order
           Array.from(el.childNodes).forEach(child => processNode(child));
         }
       }
@@ -226,7 +238,12 @@ class ChromeGradingService {
 
     Array.from(element.childNodes).forEach(child => processNode(child));
 
-    return parts.join(' ').replace(/\s+/g, ' ').replace(/\s+([.,!?:;])/g, '$1').trim();
+    // Post-processing: collapse extra spaces but keep newlines
+    return result
+      .replace(/[ \t]+\n/g, '\n')   // remove trailing spaces before newline
+      .replace(/\n{2,}/g, '\n')      // collapse multiple blank lines
+      .replace(/\s+$/g, '')           // trim trailing whitespace
+      .trim();
   }
 
   /**

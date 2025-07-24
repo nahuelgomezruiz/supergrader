@@ -53,7 +53,7 @@ declare class ChromeGradingService {
    */
     private extractTextWithSpacing;
     /**
-     * Enhanced extraction that properly handles list structures **in order**
+     * Enhanced extraction that properly handles list structures **in order** and preserves newlines
      */
     private extractTextFromLists;
     /**
