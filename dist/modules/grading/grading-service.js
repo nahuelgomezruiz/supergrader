@@ -155,7 +155,7 @@ export class GradingService {
                 }
                 return [path, content];
             })),
-            rubric_items: backendRubricItems
+            rubric_items: backendRubricItems.sort((a, b) => a.id.localeCompare(b.id))
         };
         console.log('📤 Sending grading request to backend...');
         console.log('Request JSON:', JSON.stringify(request, null, 2));
