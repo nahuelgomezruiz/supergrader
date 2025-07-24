@@ -2,11 +2,12 @@
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.api.endpoints import router
+from app.api.endpoints import router, job_repository
 from app.utils.cache import cache
+from app.middleware.cors import setup_cors_middleware
+from app.middleware.error_handling import setup_error_handling_middleware
 
 
 @asynccontextmanager
@@ -14,8 +15,10 @@ async def lifespan(app: FastAPI):
     """Manage application lifecycle."""
     # Startup
     await cache.connect()
+    await job_repository.initialize()
     yield
     # Shutdown
+    await job_repository.cleanup()
     await cache.disconnect()
 
 
@@ -26,15 +29,9 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Configure CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_origin_regex=settings.cors_origin_regex,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Configure middleware
+setup_cors_middleware(app)
+setup_error_handling_middleware(app)
 
 # Include routers
 app.include_router(router, prefix=settings.api_prefix)

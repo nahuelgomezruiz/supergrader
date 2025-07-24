@@ -10,7 +10,7 @@ from app.models import (
     RubricItem, RubricType, GradingDecision, PartialResult,
     CheckboxVerdict, RadioVerdict, RubricDecision, Evidence
 )
-from app.services.llm import LLMService
+from app.services.llm.service import LLMService
 from app.services.preprocessing import PreprocessingService
 
 
