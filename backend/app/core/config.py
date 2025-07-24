@@ -17,10 +17,10 @@ class Settings(BaseSettings):
     cache_ttl: int = 3600  # 1 hour in seconds
     
     # LLM Settings
-    llm_provider: Literal["openai", "anthropic"] = "openai"
+    llm_provider: Literal["openai", "anthropic"] = "anthropic"
     openai_api_key: Optional[str] = None
     anthropic_api_key: Optional[str] = None
-    llm_model: str = "gpt-4o"  # or "claude-3-5-sonnet-20241022"
+    llm_model: str = "claude-sonnet-4-20250514"
     llm_temperature: float = 0.1
     llm_max_tokens: int = 4096
     llm_timeout: int = 30  # seconds
