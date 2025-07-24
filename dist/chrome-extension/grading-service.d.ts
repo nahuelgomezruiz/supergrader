@@ -48,9 +48,26 @@ declare class ChromeGradingService {
      */
     private extractRubricFromDOM;
     /**
-     * Extract text content with proper spacing and bullet point preservation
-     */
+   * Extract text content with proper spacing and bullet point preservation
+   * Improved version that handles complex HTML structures more reliably
+   */
     private extractTextWithSpacing;
+    /**
+     * Enhanced extraction that properly handles list structures **in order**
+     */
+    private extractTextFromLists;
+    /**
+     * Get direct text content of an element, excluding nested lists
+     */
+    private getDirectTextContent;
+    /**
+     * Simple fallback extraction method
+     */
+    private extractTextSimple;
+    /**
+     * Debug helper: Log the extracted text for a rubric item
+     */
+    private logTextExtractionDebug;
     /**
      * Extract nested checkboxes from a group (like Program Design)
      */

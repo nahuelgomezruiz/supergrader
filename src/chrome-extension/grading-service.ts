@@ -111,6 +111,7 @@ class ChromeGradingService {
       if (keyBtn && descEl) {
         const id = keyBtn.textContent?.trim() || `group_${items.length}`;
         const description = this.extractTextWithSpacing(descEl);
+        this.logTextExtractionDebug(id, descEl, description);
         const pointsText = pointsEl?.textContent?.trim() || '0';
         const points = parseFloat(pointsText.replace(/[^\d.-]/g, '')) || 0;
         
@@ -137,6 +138,7 @@ class ChromeGradingService {
       if (keyBtn && descEl) {
         const id = keyBtn.textContent?.trim() || `item_${items.length}`;
         const description = this.extractTextWithSpacing(descEl);
+        this.logTextExtractionDebug(id, descEl, description);
         const pointsText = pointsEl?.textContent?.trim() || '0';
         const points = parseFloat(pointsText.replace(/[^\d.-]/g, '')) || 0;
         
@@ -153,85 +155,116 @@ class ChromeGradingService {
     return { type: 'structured', items };
   }
 
-  /**
+    /**
    * Extract text content with proper spacing and bullet point preservation
-   */
+   * Improved version that handles complex HTML structures more reliably
+   */  
   private extractTextWithSpacing(element: Element): string {
-    let text = '';
-    
-    // Walk through all child nodes
-    const walker = document.createTreeWalker(
-      element,
-      NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
-      null
-    );
+    // Debug: Log the HTML structure for troubleshooting
+    console.log('🔍 Extracting text from element:', {
+      tagName: element.tagName,
+      className: element.className,
+      innerHTML: element.innerHTML.substring(0, 200) + (element.innerHTML.length > 200 ? '...' : '')
+    });
 
-    let node;
-    let insideList = false;
-    
-    while (node = walker.nextNode()) {
-      if (node.nodeType === Node.TEXT_NODE) {
-        const textContent = node.textContent?.trim();
-        if (textContent) {
-          // Add bullet point prefix if we're inside a list item
-          if (insideList && text && !text.endsWith('\n') && !text.endsWith('• ')) {
-            text += '• ';
-          }
-          text += textContent;
-          // Add space after text unless it ends with punctuation
-          if (!textContent.match(/[.!?:]$/)) {
-            text += ' ';
-          }
+    // Try multiple extraction approaches and pick the best one
+    const approaches = [
+      () => this.extractTextFromLists(element),
+      () => this.extractTextSimple(element),
+      () => element.textContent?.trim() || ''
+    ];
+
+    for (const approach of approaches) {
+      try {
+        const result = approach();
+        if (result && result.length > 10) { // Prefer non-empty results
+          console.log('✅ Using extraction result:', result.substring(0, 100) + '...');
+          return result;
         }
-      } else if (node.nodeType === Node.ELEMENT_NODE) {
-        const element = node as Element;
-        const tagName = element.tagName.toLowerCase();
-        
-        // Handle different structural elements
-        switch (tagName) {
-          case 'li':
-            // Start of list item - add newline and bullet
-            if (text && !text.endsWith('\n')) {
-              text += '\n';
-            }
-            text += '• ';
-            insideList = true;
-            break;
-          case 'ul':
-          case 'ol':
-            // List container - add spacing
-            if (text && !text.endsWith('\n')) {
-              text += '\n';
-            }
-            break;
-          case 'p':
-          case 'div':
-            // Paragraph - add line break if needed
-            if (text && !text.endsWith('\n') && text.trim().length > 0) {
-              text += '\n';
-            }
-            break;
-          case 'br':
-            // Line break
-            text += '\n';
-            break;
-        }
-        
-        // Reset list flag when exiting list item
-        if (tagName === 'li' && walker.currentNode === element && walker.nextNode() && 
-            !walker.currentNode.parentElement?.closest('li')) {
-          insideList = false;
-        }
+      } catch (error) {
+        console.warn('⚠️ Text extraction approach failed:', error);
       }
     }
+
+    // Fallback to basic text content
+    const fallback = element.textContent?.trim() || '';
+    console.log('🔄 Using fallback extraction:', fallback.substring(0, 100) + '...');
+    return fallback;
+  }
+
+  /**
+   * Enhanced extraction that properly handles list structures **in order**
+   */
+  private extractTextFromLists(element: Element): string {
+    const parts: string[] = [];
+
+    // Helper to process nodes recursively while preserving order
+    const processNode = (node: Node): void => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const txt = node.textContent?.trim();
+        if (txt) parts.push(txt);
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as Element;
+        const tag = el.tagName.toLowerCase();
+
+        if (tag === 'ul' || tag === 'ol') {
+          // Handle immediate list items only (preserve nesting order)
+          const lis = Array.from(el.querySelectorAll(':scope > li'));
+          lis.forEach(li => {
+            const liTxt = li.textContent?.trim();
+            if (liTxt) parts.push(`• ${liTxt}`);
+          });
+        } else if (tag === 'br') {
+          // Replace <br> with a space
+          parts.push(' ');
+        } else {
+          // Recurse into other elements
+          Array.from(el.childNodes).forEach(child => processNode(child));
+        }
+      }
+    };
+
+    Array.from(element.childNodes).forEach(child => processNode(child));
+
+    return parts.join(' ').replace(/\s+/g, ' ').replace(/\s+([.,!?:;])/g, '$1').trim();
+  }
+
+  /**
+   * Get direct text content of an element, excluding nested lists
+   */
+  private getDirectTextContent(element: Element): string {
+    const clone = element.cloneNode(true) as Element;
     
-    // Clean up formatting
+    // Remove list elements to get main text
+    const lists = clone.querySelectorAll('ul, ol');
+    lists.forEach(list => list.remove());
+    
+    return clone.textContent?.trim() || '';
+  }
+
+  /**
+   * Simple fallback extraction method
+   */
+  private extractTextSimple(element: Element): string {
+    // Use innerText which respects display formatting better than textContent
+    const text = (element as HTMLElement).innerText || element.textContent || '';
+    
     return text
-      .replace(/\n\s*\n/g, '\n')  // Remove empty lines
-      .replace(/\s+/g, ' ')       // Normalize spaces
-      .replace(/\n /g, '\n')      // Remove spaces after newlines
-      .replace(/• +/g, '• ')      // Normalize bullet spacing
+      .replace(/\s+/g, ' ')           // Normalize whitespace
+      .replace(/\n\s*/g, ' ')         // Convert newlines to spaces
       .trim();
+  }
+
+  /**
+   * Debug helper: Log the extracted text for a rubric item  
+   */
+  private logTextExtractionDebug(itemId: string, element: Element, extractedText: string): void {
+    console.log(`📝 Text extraction for item ${itemId}:`, {
+      originalHTML: element.innerHTML.substring(0, 300) + '...',
+      extractedText: extractedText.substring(0, 200) + (extractedText.length > 200 ? '...' : ''),
+      hasListItems: element.querySelectorAll('li').length > 0,
+      listItemCount: element.querySelectorAll('li').length
+    });
   }
 
   /**
@@ -446,7 +479,21 @@ class ChromeGradingService {
       }
     }
 
-    return backendItems;
+    // Filter out zero-point checkbox items (they don't contribute to grade and are often just for human graders)
+    const filteredItems = backendItems.filter(item => {
+      if (item.type === 'CHECKBOX' && item.points === 0) {
+        console.log(`🚫 Filtering out zero-point checkbox: ${item.id} - "${item.description}"`);
+        return false;
+      }
+      return true;
+    });
+
+    const filteredCount = backendItems.length - filteredItems.length;
+    if (filteredCount > 0) {
+      console.log(`✅ Filtered out ${filteredCount} zero-point checkbox items. Sending ${filteredItems.length} items to backend.`);
+    }
+
+    return filteredItems;
   }
 
   private isTestFile(filePath: string): boolean {

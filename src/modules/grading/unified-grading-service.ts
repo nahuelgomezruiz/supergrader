@@ -299,7 +299,21 @@ export class UnifiedGradingService {
       backendItems.push(backendItem);
     }
 
-    return backendItems;
+    // Filter out zero-point checkbox items (they don't contribute to grade and are often just for human graders)
+    const filteredItems = backendItems.filter(item => {
+      if (item.type === 'CHECKBOX' && item.points === 0) {
+        console.log(`🚫 Filtering out zero-point checkbox: ${item.id} - "${item.description}"`);
+        return false;
+      }
+      return true;
+    });
+
+    const filteredCount = backendItems.length - filteredItems.length;
+    if (filteredCount > 0) {
+      console.log(`✅ Filtered out ${filteredCount} zero-point checkbox items. Sending ${filteredItems.length} items to backend.`);
+    }
+
+    return filteredItems;
   }
 
   /**
