@@ -116,19 +116,20 @@ export class UnifiedGradingService {
       radioOptions = Array.from(groupElement.querySelectorAll('.rubricItemGroup--rubricItems .rubricItem'));
     }
 
-    // Extract each option
-    radioOptions.forEach((optionElement) => {
+    // QWERTY order for option letters
+    const QWERTY_LETTERS = "QWERTYUIOPASDFGHJKLZXCVBNM";
+    
+    // Extract each option and assign QWERTY letters
+    radioOptions.forEach((optionElement, index) => {
       const descEl = optionElement.querySelector('.rubricField-description');
       let optionDesc = descEl?.textContent?.trim() || '';
       
       // Clean up the description
       optionDesc = optionDesc.replace(/^Grading comment:\s*/, '').trim();
       
-      const ptsEl = optionElement.querySelector('.rubricField-points');
-      const ptsText = ptsEl?.textContent?.trim() || '0 pts';
-      
-      if (optionDesc) {
-        options[optionDesc] = ptsText;
+      if (optionDesc && index < QWERTY_LETTERS.length) {
+        const optionLetter = QWERTY_LETTERS[index];
+        options[optionLetter] = optionDesc;
       }
     });
 

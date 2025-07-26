@@ -19,7 +19,7 @@ Student submission (trimmed):
 TASKS – for this single checkbox only:
 1. Decide **check** or **uncheck**.
 2. Gather the most relevant evidence lines for your decision (file + line range).
-3. If unchecked, draft a short feedback comment for the student at the evidence location.
+3. Draft a short feedback comment explaining your decision.
 4. Estimate a confidence percentage (0‑100).
 
 OUTPUT FORMAT (JSON only, no extra text):

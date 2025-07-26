@@ -60,7 +60,7 @@ Student submission (trimmed):
 TASKS – for this single checkbox only:
 1. Decide **check** or **uncheck**.
 2. Gather the most relevant evidence lines for your decision (file + line range).
-3. If unchecked, draft a short feedback comment for the student at the evidence location.
+3. Draft a short feedback comment explaining your decision (for both check and uncheck).
 4. Estimate a confidence percentage (0‑100).
 
 OUTPUT FORMAT (JSON only, no extra text):
@@ -101,26 +101,26 @@ Remember: think internally first, then output **only** the JSON block."""
 Rubric item (RADIO):
 «{description}»
 
-Options (pick exactly one):
+Options (pick exactly one letter):
 {options_section}
 
 Student submission (trimmed):
 {files_section}
 
 TASKS – for this radio item only:
-1. Select the **option_key** that best fits the student code.
+1. Select the **letter** (Q, W, E, R, etc.) of the option that best fits the student code.
 2. Gather the most relevant evidence lines for your choice (file + line range).
-3. If the chosen option awards less than full points, draft a short feedback comment at the evidence location.
+3. Draft a short feedback comment explaining your choice (for all options, regardless of points).
 4. Estimate a confidence percentage (0‑100).
 
 OUTPUT FORMAT (JSON only, no extra text):
 ```json
 {{
-  "selected_option": "{{option_key}}",
+  "selected_option": "Q",
   "evidence": {{ "file": "…", "lines": "start‑end" }},
   "comment": "…",
   "confidence": 0‑100
 }}
 ```
 
-Remember: think internally first, then output **only** the JSON block.""" 
+Remember: think internally first, then output **only** the JSON block with the letter of your chosen option.""" 

@@ -2,6 +2,7 @@
 
 import asyncio
 import uuid
+import math
 from typing import Dict, List, Union, AsyncGenerator
 from collections import Counter
 
@@ -21,6 +22,45 @@ class GradingService:
         self.llm_service = LLMService()
         self.preprocessing_service = PreprocessingService()
     
+    def _estimate_batch_load(self, batch_size: int) -> Dict[str, int]:
+        """Estimate the API load for a batch."""
+        total_requests = batch_size * settings.parallel_llm_calls
+        estimated_tokens = total_requests * 2000  # ~2000 tokens per request
+        
+        return {
+            "requests": total_requests,
+            "tokens": estimated_tokens,
+            "batch_size": batch_size
+        }
+    
+    def _optimize_batch_size(self, total_items: int) -> int:
+        """Optimize batch size based on total items and API limits."""
+        # Calculate maximum possible batch size based on API limits
+        max_requests_per_batch = settings.max_requests_per_minute // 6  # Conservative: 6 batches per minute max
+        max_tokens_per_batch = settings.max_tokens_per_minute // 6  # Conservative: 6 batches per minute max
+        
+        # Calculate limits based on our parallel calls
+        max_batch_by_requests = max_requests_per_batch // settings.parallel_llm_calls
+        max_batch_by_tokens = max_tokens_per_batch // (settings.parallel_llm_calls * 2000)
+        
+        # Take the minimum of all constraints
+        api_limited_batch_size = min(max_batch_by_requests, max_batch_by_tokens)
+        
+        # Use the smaller of configured batch_size, API limits, or total items
+        optimal_batch_size = min(settings.batch_size, api_limited_batch_size, total_items)
+        
+        # If we have very few items, just use total_items
+        if total_items <= settings.batch_size:
+            optimal_batch_size = total_items
+            
+        print(f"📊 Batch Size Optimization:")
+        print(f"   • Configured batch size: {settings.batch_size}")
+        print(f"   • Total rubric items: {total_items}")
+        print(f"   • API-limited batch size: {api_limited_batch_size}")
+        print(f"   • Optimal batch size: {optimal_batch_size}")
+        
+        return optimal_batch_size
+    
     async def grade_submission(
         self,
         course_id: str,
@@ -30,9 +70,9 @@ class GradingService:
         rubric_items: List[RubricItem]
     ) -> AsyncGenerator[PartialResult, None]:
         """
-        Grade a submission by evaluating each rubric item.
+        Grade a submission by evaluating rubric items in parallel batches.
         
-        Yields PartialResult objects as items are processed.
+        Yields PartialResult objects as batches are processed.
         """
         # Preprocess the submission
         processed_files = await self.preprocessing_service.preprocess_submission(
@@ -42,28 +82,81 @@ class GradingService:
         total_items = len(rubric_items)
         completed_items = 0
         
-        # Process each rubric item
-        for rubric_item in rubric_items:
-            # Evaluate the rubric item with multiple LLM calls
-            decision = await self._evaluate_rubric_item(
-                rubric_item, processed_files
+        # Optimize batch size based on total items and API limits
+        optimal_batch_size = self._optimize_batch_size(total_items)
+        total_batches = math.ceil(total_items / optimal_batch_size)
+        
+        # Log batch processing plan
+        estimated_load = self._estimate_batch_load(min(optimal_batch_size, total_items))
+        print(f"🚀 Batch Processing Plan:")
+        print(f"   • Total rubric items: {total_items}")
+        print(f"   • Optimal batch size: {optimal_batch_size}")
+        print(f"   • Total batches: {total_batches}")
+        print(f"   • Est. requests per batch: {estimated_load['requests']}")
+        print(f"   • Est. tokens per batch: {estimated_load['tokens']:,}")
+        print(f"   • Parallel LLM calls per rubric: {settings.parallel_llm_calls}")
+        
+        if total_items < settings.batch_size:
+            print(f"ℹ️  Note: Assignment has only {total_items} rubric items - using single batch")
+        
+        batch_start_time = asyncio.get_event_loop().time()
+        
+        # Process rubric items in batches using optimal batch size
+        for batch_num, batch_start in enumerate(range(0, total_items, optimal_batch_size), 1):
+            batch_end = min(batch_start + optimal_batch_size, total_items)
+            batch = rubric_items[batch_start:batch_end]
+            actual_batch_size = len(batch)
+            
+            print(f"📦 Processing batch {batch_num}/{total_batches}: items {batch_start+1}-{batch_end} ({actual_batch_size} items)")
+            
+            # Process entire batch in parallel
+            batch_task_start = asyncio.get_event_loop().time()
+            
+            batch_tasks = []
+            for rubric_item in batch:
+                task = self._evaluate_rubric_item(rubric_item, processed_files)
+                batch_tasks.append((rubric_item, task))
+            
+            # Execute all tasks in the batch simultaneously
+            batch_results = await asyncio.gather(
+                *[task for _, task in batch_tasks], 
+                return_exceptions=True
             )
             
-            completed_items += 1
-            progress = completed_items / total_items
+            batch_task_end = asyncio.get_event_loop().time()
+            batch_duration = batch_task_end - batch_task_start
             
-            # Yield partial result
-            yield PartialResult(
-                type="partial_result",
-                rubric_item_id=rubric_item.id,
-                decision=decision,
-                progress=progress
-            )
+            # Process results and yield partial results
+            for i, ((rubric_item, _), result) in enumerate(zip(batch_tasks, batch_results)):
+                completed_items += 1
+                progress = completed_items / total_items
+                
+                if isinstance(result, Exception):
+                    print(f"❌ Batch processing failed for rubric item {rubric_item.id}: {result}")
+                    decision = self._create_fallback_decision(rubric_item)
+                else:
+                    decision = result
+                
+                yield PartialResult(
+                    type="partial_result",
+                    rubric_item_id=rubric_item.id,
+                    decision=decision,
+                    progress=progress
+                )
+            
+            print(f"✅ Batch {batch_num}/{total_batches} completed in {batch_duration:.2f}s ({actual_batch_size} items)")
+            
+            # Add small delay between batches if configured and more batches remain
+            if batch_num < total_batches and settings.batch_processing_delay > 0:
+                await asyncio.sleep(settings.batch_processing_delay)
+        
+        total_duration = asyncio.get_event_loop().time() - batch_start_time
+        print(f"🎉 All batches completed in {total_duration:.2f}s (avg: {total_duration/total_batches:.2f}s per batch)")
         
         # Send completion event
         yield PartialResult(
             type="job_complete",
-            message="Grading completed successfully",
+            message=f"Grading completed - {total_items} items in {total_batches} batches ({total_duration:.1f}s)",
             progress=1.0
         )
     
@@ -180,8 +273,8 @@ class GradingService:
                 confidence=0
             )
         else:
-            # Default to first option (usually full credit)
-            first_option = list(rubric_item.options.keys())[0] if rubric_item.options else "unknown"
+            # Default to first option (usually full credit) - should be letter "Q"
+            first_option = list(rubric_item.options.keys())[0] if rubric_item.options else "Q"
             verdict = RadioVerdict(
                 selected_option=first_option,
                 evidence=Evidence(file="unknown", lines="0-0"),

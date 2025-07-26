@@ -27,9 +27,15 @@ class Settings(BaseSettings):
     llm_max_retries: int = 3
     
     # Grading Settings
-    parallel_llm_calls: int = 3  # Number of parallel LLM calls per rubric item
+    parallel_llm_calls: int = 1  # LLM calls per rubric item
+    batch_size: int = 100  # Maximum rubrics to process simultaneously (increased from 50)
+    batch_processing_delay: float = 0.05  # Reduced delay between batches
     confidence_threshold: float = 0.8
     max_file_size: int = 100_000  # Max characters per file
+    
+    # Rate Limit Safety Settings (Tier 5 Conservative Limits)
+    max_requests_per_minute: int = 8000  # 80% of Tier 5 10K RPM limit
+    max_tokens_per_minute: int = 24_000_000  # 80% of Tier 5 30M TPM limit
     
     # CORS Settings
     # List of exact origins (mostly for local dev)
