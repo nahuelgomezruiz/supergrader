@@ -1,15 +1,13 @@
 """Services module."""
 
 from .grading import GradingService
-from .preprocessing import PreprocessingService
 from .llm.service import LLMService
-from .llm.factory import LLMProviderFactory
-from .persistence.factory import JobRepositoryFactory
+from .preprocessing import PreprocessingService
+from .rubric_loader import RubricLoaderService
 
 __all__ = [
     "GradingService",
-    "PreprocessingService", 
-    "LLMService",
-    "LLMProviderFactory",
-    "JobRepositoryFactory"
+    "LLMService", 
+    "PreprocessingService",
+    "RubricLoaderService"
 ] 

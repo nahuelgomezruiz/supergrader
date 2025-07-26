@@ -39,7 +39,8 @@ class BaseLLMProvider(ABC):
         description: str,
         points: float,
         source_files: Dict[str, str],
-        language: str = "cpp"
+        language: str = "cpp",
+        section_context: Optional[str] = None
     ) -> str:
         """Build prompt for checkbox rubric items."""
         
@@ -49,13 +50,26 @@ class BaseLLMProvider(ABC):
             for filename, content in source_files.items()
         ])
         
+        # Build section context if provided
+        context_section = ""
+        if section_context:
+            context_section = f"""
+Entire rubric for this section (for context only):
+{section_context}
+
+"""
+
         return f"""You are an expert code grader. Think step‑by‑step **silently**; show only the final JSON.
 
+{context_section}YOUR SPECIFIC TASK - Evaluate this single checkbox:
 Rubric item (CHECKBOX, {points} pts):
 «{description}»
 
 Student submission (trimmed):
 {files_section}
+
+INSTRUCTIONS:
+The above rubric section is provided for context only. Your task is to evaluate ONLY the specific checkbox item shown above.
 
 TASKS – for this single checkbox only:
 1. Decide **check** or **uncheck**.
@@ -73,6 +87,12 @@ OUTPUT FORMAT (JSON only, no extra text):
 }}
 ```
 
+GENERAL CONSIDERATIONS:
+- Be somewhat lenient when answering questions about testing. A good effort of a couple
+hundred lines of unit tests is enough.
+- Admit documentation of the testing that shows a good enough effort of showing
+the debugging process.
+
 Remember: think internally first, then output **only** the JSON block."""
     
     def build_radio_prompt(
@@ -80,7 +100,8 @@ Remember: think internally first, then output **only** the JSON block."""
         description: str,
         options: Dict[str, str],
         source_files: Dict[str, str],
-        language: str = "cpp"
+        language: str = "cpp",
+        section_context: Optional[str] = None
     ) -> str:
         """Build prompt for radio rubric items."""
         
@@ -96,8 +117,18 @@ Remember: think internally first, then output **only** the JSON block."""
             for key, text in options.items()
         ])
         
+        # Build section context if provided
+        context_section = ""
+        if section_context:
+            context_section = f"""
+Entire rubric for this section (for context only):
+{section_context}
+
+"""
+
         return f"""You are an expert code grader. Think step‑by‑step **silently**; show only the final JSON.
 
+{context_section}YOUR SPECIFIC TASK - Evaluate this single radio button:
 Rubric item (RADIO):
 «{description}»
 
@@ -106,6 +137,9 @@ Options (pick exactly one letter):
 
 Student submission (trimmed):
 {files_section}
+
+INSTRUCTIONS:
+The above rubric section is provided for context only. Your task is to evaluate ONLY the specific radio button item shown above.
 
 TASKS – for this radio item only:
 1. Select the **letter** (Q, W, E, R, etc.) of the option that best fits the student code.
@@ -122,5 +156,11 @@ OUTPUT FORMAT (JSON only, no extra text):
   "confidence": 0‑100
 }}
 ```
+
+GENERAL CONSIDERATIONS:
+- Be somewhat lenient when answering questions about testing. A good effort of a couple
+hundred lines of unit tests is enough.
+- Admit documentation of the testing that shows a good enough effort of showing
+the debugging process.
 
 Remember: think internally first, then output **only** the JSON block with the letter of your chosen option.""" 

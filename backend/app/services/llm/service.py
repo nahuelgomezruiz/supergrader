@@ -6,14 +6,61 @@ from tenacity import (
     retry,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception_type
+    retry_if_exception_type,
+    retry_if_exception,
+    wait_combine,
+    wait_fixed
 )
 import httpx
+import anthropic
+import openai
 
 from app.core.config import settings
 from app.models import RubricType, CheckboxVerdict, RadioVerdict
 from .factory import LLMProviderFactory
 from .base_provider import BaseLLMProvider
+
+
+def is_retryable_error(exception: Exception) -> bool:
+    """Determine if an exception should be retried."""
+    
+    # Network-level retryable errors
+    if isinstance(exception, (httpx.TimeoutException, httpx.ConnectError, httpx.ReadError)):
+        return True
+    
+    # HTTP status code errors
+    if isinstance(exception, httpx.HTTPStatusError):
+        status_code = exception.response.status_code
+        # Retry on rate limiting and server errors
+        if status_code in (429, 500, 502, 503, 504):
+            print(f"🔄 Retryable HTTP {status_code} error: {exception}")
+            return True
+    
+    # Anthropic-specific retryable errors
+    if isinstance(exception, anthropic.RateLimitError):
+        print(f"🔄 Anthropic rate limit error: {exception}")
+        return True
+    
+    if isinstance(exception, (anthropic.InternalServerError, anthropic.APITimeoutError)):
+        print(f"🔄 Anthropic server/timeout error: {exception}")
+        return True
+    
+    # OpenAI-specific retryable errors  
+    if isinstance(exception, openai.RateLimitError):
+        print(f"🔄 OpenAI rate limit error: {exception}")
+        return True
+        
+    if isinstance(exception, (openai.InternalServerError, openai.APITimeoutError)):
+        print(f"🔄 OpenAI server/timeout error: {exception}")
+        return True
+    
+    # Generic API connection errors
+    if isinstance(exception, (openai.APIConnectionError, anthropic.APIConnectionError)):
+        print(f"🔄 API connection error: {exception}")
+        return True
+    
+    print(f"❌ Non-retryable error: {type(exception).__name__}: {exception}")
+    return False
 
 
 class LLMService:
@@ -43,8 +90,12 @@ class LLMService:
     
     @retry(
         stop=stop_after_attempt(settings.llm_max_retries),
-        wait=wait_exponential(multiplier=1, min=4, max=10),
-        retry=retry_if_exception_type((httpx.TimeoutException, httpx.ConnectError))
+        wait=wait_combine(
+            wait_exponential(multiplier=1, min=4, max=30),  # Exponential backoff up to 30s
+            wait_fixed(2)  # Minimum 2s wait between retries
+        ),
+        retry=retry_if_exception(is_retryable_error),
+        reraise=True
     )
     async def evaluate_rubric_item(
         self,
@@ -53,7 +104,8 @@ class LLMService:
         rubric_points: float,
         rubric_options: Optional[Dict[str, str]],
         source_files: Dict[str, str],
-        language: str = "cpp"
+        language: str = "cpp",
+        section_context: Optional[str] = None
     ) -> Union[CheckboxVerdict, RadioVerdict]:
         """Evaluate a single rubric item using the LLM."""
         
@@ -63,15 +115,30 @@ class LLMService:
             # Prepare the prompt based on rubric type
             if rubric_type == RubricType.CHECKBOX:
                 prompt = provider.build_checkbox_prompt(
-                    rubric_description, rubric_points, source_files, language
+                    rubric_description, rubric_points, source_files, language, section_context
                 )
             else:
                 prompt = provider.build_radio_prompt(
-                    rubric_description, rubric_options, source_files, language
+                    rubric_description, rubric_options, source_files, language, section_context
                 )
+            
+            # Print the prompt for debugging
+            print(f"\n{'='*80}")
+            print(f"🤖 PROMPT SENT TO {provider.provider_name.upper()} ({provider.model})")
+            print(f"{'='*80}")
+            print(prompt)
+            print(f"{'='*80}")
+            print()
             
             # Call the LLM
             response = await provider.call_llm(prompt)
+            
+            # Print the response for debugging
+            print(f"📤 RESPONSE FROM {provider.provider_name.upper()}")
+            print(f"{'='*80}")
+            print(response)
+            print(f"{'='*80}")
+            print()
             
             # Parse the response
             return self._parse_response(response, rubric_type)

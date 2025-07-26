@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 QWERTY_LETTERS = "QWERTYUIOPASDFGHJKLZXCVBNM"
 
 # Concurrent batch processing configuration
-DEFAULT_CONCURRENT_BATCH_SIZE = 20  # Number of students to process concurrently
+DEFAULT_CONCURRENT_BATCH_SIZE = 10  # Number of students to process concurrently
 
 
 @dataclass
@@ -108,6 +108,32 @@ class RubricItemStats:
     ai_std: float
     agreement_rate: float  # For categorical items, % agreement
     sample_size: int
+
+
+def filter_rubric_items_for_backend(rubric_items: List[RubricItem]) -> List[RubricItem]:
+    """Filter out bonus point questions and other items that shouldn't be sent to backend."""
+    filtered_items = []
+    filtered_count = 0
+    
+    for rubric_item in rubric_items:
+        # Filter out bonus point questions 
+        if rubric_item.description and '(Bonus point)' in rubric_item.description:
+            print(f"🚫 Filtering out bonus point question: {rubric_item.id} - \"{rubric_item.description[:60]}...\"")
+            filtered_count += 1
+            continue
+            
+        # Also filter out zero-point items that are often just for human graders
+        if rubric_item.type == 'CHECKBOX' and rubric_item.points == 0:
+            print(f"🚫 Filtering out zero-point checkbox: {rubric_item.id} - \"{rubric_item.description[:60]}...\"")
+            filtered_count += 1 
+            continue
+            
+        filtered_items.append(rubric_item)
+    
+    if filtered_count > 0:
+        print(f"✅ Filtered out {filtered_count} items. Sending {len(filtered_items)} items to backend.")
+    
+    return filtered_items
 
 
 class PointsCalculator:
@@ -814,6 +840,586 @@ class ExcelReportGenerator:
         # Adjust column widths
         for col in range(1, 10):
             summary_ws.column_dimensions[get_column_letter(col)].width = 20
+
+
+class CrossProjectUnifiedReportGenerator:
+    """Generates a unified Excel report with statistics from all evaluated assignments."""
+    
+    def __init__(self):
+        self.wb = None
+    
+    def create_cross_project_report(
+        self,
+        all_project_data: Dict[str, List[Dict]],
+        output_path: Path
+    ):
+        """Create unified Excel report with statistics from all projects."""
+        
+        self.wb = openpyxl.Workbook()
+        # Remove default sheet
+        default_sheet = self.wb.active
+        self.wb.remove(default_sheet)
+        
+        # Define styles
+        header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+        header_font = Font(color="FFFFFF", bold=True)
+        subheader_fill = PatternFill(start_color="B4C6E7", end_color="B4C6E7", fill_type="solid")
+        excellent_fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")  # Green
+        good_fill = PatternFill(start_color="DDEBF7", end_color="DDEBF7", fill_type="solid")  # Light blue
+        fair_fill = PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid")  # Yellow
+        poor_fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")  # Light red
+        border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+        
+        # Create overview summary sheet
+        print("      📊 Creating overview summary sheet...")
+        self._create_overview_sheet(all_project_data, header_fill, header_font, border)
+        print("      ✅ Overview summary sheet completed")
+        
+        # Create detailed statistics sheet  
+        print("      📋 Creating detailed statistics sheet...")
+        self._create_detailed_stats_sheet(all_project_data, header_fill, header_font, subheader_fill, border)
+        print("      ✅ Detailed statistics sheet completed")
+        
+        # Create project comparison sheet
+        print("      📈 Creating project comparison sheet...")
+        self._create_project_comparison_sheet(all_project_data, header_fill, header_font, border)
+        print("      ✅ Project comparison sheet completed")
+        
+        # Create rubric analysis sheet
+        print("      🎯 Creating rubric analysis sheet...")
+        self._create_rubric_analysis_sheet(all_project_data, header_fill, header_font, border)
+        print("      ✅ Rubric analysis sheet completed")
+        
+        # Save the workbook
+        print("      💾 Saving Excel file...")
+        self.wb.save(output_path)
+        print("      ✅ Excel file saved successfully")
+        
+    def _create_overview_sheet(self, all_project_data, header_fill, header_font, border):
+        """Create overview summary sheet with key statistics."""
+        
+        ws = self.wb.create_sheet("OVERVIEW_SUMMARY")
+        
+        # Title
+        title_cell = ws.cell(row=1, column=1, value="Cross-Project Evaluation Summary")
+        title_cell.font = Font(size=16, bold=True)
+        ws.merge_cells('A1:H1')
+        
+        # Headers
+        headers = [
+            "Project", "Assignment", "Students Evaluated", "Total Rubric Items", 
+            "Accuracy Rate", "Avg Confidence", "Checkbox Items", "Radio Items"
+        ]
+        
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=3, column=col, value=header)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.border = border
+        
+        row = 4
+        total_students = 0
+        total_items = 0
+        total_accuracy_sum = 0
+        total_confidence_sum = 0
+        project_count = 0
+        
+        for project_idx, (project_name, evaluation_data_list) in enumerate(all_project_data.items(), 1):
+            print(f"         📊 Processing project {project_idx}/{len(all_project_data)}: {project_name}")
+            for eval_data in evaluation_data_list:
+                csv_name = eval_data['csv_name']
+                rubric_items = eval_data['rubric_items']
+                human_grades = eval_data['human_grades']
+                backend_results = eval_data['backend_results']
+                
+                # Calculate statistics
+                students_evaluated = len(human_grades)
+                total_rubric_items = len(rubric_items)
+                checkbox_items = len([r for r in rubric_items if r.type == "CHECKBOX"])
+                radio_items = len([r for r in rubric_items if r.type == "RADIO"])
+                
+                # Calculate accuracy and confidence
+                matches = 0
+                total_comparisons = 0
+                confidence_sum = 0
+                confidence_count = 0
+                
+                for student_id, student_grade in human_grades.items():
+                    backend_results_student = backend_results.get(student_id, [])
+                    
+                    # Create a lookup dictionary for this student's backend results to optimize performance
+                    backend_lookup = {r.rubric_id: r for r in backend_results_student}
+                    
+                    for rubric_item in rubric_items:
+                        backend_result = backend_lookup.get(rubric_item.id)
+                        
+                        if backend_result:
+                            total_comparisons += 1
+                            confidence_sum += backend_result.confidence
+                            confidence_count += 1
+                            
+                            human_value = student_grade.grades.get(rubric_item.id, False)
+                            
+                            if rubric_item.type == "CHECKBOX":
+                                backend_bool = backend_result.decision == "check"
+                                if human_value == backend_bool:
+                                    matches += 1
+                            else:  # RADIO
+                                if str(human_value) == backend_result.decision:
+                                    matches += 1
+                
+                accuracy_rate = (matches / total_comparisons * 100) if total_comparisons > 0 else 0
+                avg_confidence = (confidence_sum / confidence_count * 100) if confidence_count > 0 else 0
+                
+                # Write data
+                data = [
+                    project_name, csv_name, students_evaluated, total_rubric_items,
+                    f"{accuracy_rate:.1f}%", f"{avg_confidence:.1f}%", checkbox_items, radio_items
+                ]
+                
+                for col, value in enumerate(data, 1):
+                    cell = ws.cell(row=row, column=col, value=value)
+                    cell.border = border
+                    
+                    # Color code accuracy
+                    if col == 5:  # Accuracy column
+                        if accuracy_rate >= 90:
+                            cell.fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+                        elif accuracy_rate >= 80:
+                            cell.fill = PatternFill(start_color="DDEBF7", end_color="DDEBF7", fill_type="solid")
+                        elif accuracy_rate >= 70:
+                            cell.fill = PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid")
+                        else:
+                            cell.fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+                
+                # Accumulate totals
+                total_students += students_evaluated
+                total_items += total_rubric_items
+                total_accuracy_sum += accuracy_rate
+                total_confidence_sum += avg_confidence
+                project_count += 1
+                
+                row += 1
+        
+        # Add summary row
+        row += 1
+        summary_headers = ["TOTALS/AVERAGES", "", f"{total_students}", f"{total_items}", 
+                          f"{total_accuracy_sum/project_count:.1f}%" if project_count > 0 else "0%",
+                          f"{total_confidence_sum/project_count:.1f}%" if project_count > 0 else "0%", "", ""]
+        
+        for col, value in enumerate(summary_headers, 1):
+            cell = ws.cell(row=row, column=col, value=value)
+            cell.font = Font(bold=True)
+            cell.fill = PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type="solid")
+            cell.border = border
+        
+        # Adjust column widths
+        ws.column_dimensions['A'].width = 15
+        ws.column_dimensions['B'].width = 25
+        ws.column_dimensions['C'].width = 15
+        ws.column_dimensions['D'].width = 15
+        ws.column_dimensions['E'].width = 12
+        ws.column_dimensions['F'].width = 12
+        ws.column_dimensions['G'].width = 12
+        ws.column_dimensions['H'].width = 12
+    
+    def _create_detailed_stats_sheet(self, all_project_data, header_fill, header_font, subheader_fill, border):
+        """Create detailed statistics sheet with per-rubric-item analysis."""
+        
+        ws = self.wb.create_sheet("DETAILED_STATISTICS")
+        
+        # Title
+        title_cell = ws.cell(row=1, column=1, value="Detailed Rubric Item Analysis")
+        title_cell.font = Font(size=16, bold=True)
+        ws.merge_cells('A1:J1')
+        
+        # Headers
+        headers = [
+            "Project", "Assignment", "Rubric Item", "Type", "Points", 
+            "Matches", "False Positives", "False Negatives", "Accuracy", "Avg Confidence"
+        ]
+        
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=3, column=col, value=header)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.border = border
+        
+        row = 4
+        
+        for project_name, evaluation_data_list in all_project_data.items():
+            for eval_data in evaluation_data_list:
+                csv_name = eval_data['csv_name']
+                rubric_items = eval_data['rubric_items']
+                human_grades = eval_data['human_grades']
+                backend_results = eval_data['backend_results']
+                
+                for rubric_item in rubric_items:
+                    matches = 0
+                    false_positives = 0
+                    false_negatives = 0
+                    total = 0
+                    confidence_sum = 0
+                    confidence_count = 0
+                    
+                    for student_id, student_grade in human_grades.items():
+                        backend_results_student = backend_results.get(student_id, [])
+                        backend_result = next((r for r in backend_results_student if r.rubric_id == rubric_item.id), None)
+                        
+                        if backend_result:
+                            total += 1
+                            confidence_sum += backend_result.confidence
+                            confidence_count += 1
+                            
+                            human_value = student_grade.grades.get(rubric_item.id, False)
+                            
+                            if rubric_item.type == "CHECKBOX":
+                                human_bool = human_value
+                                backend_bool = backend_result.decision == "check"
+                                
+                                if human_bool == backend_bool:
+                                    matches += 1
+                                elif not human_bool and backend_bool:
+                                    false_positives += 1
+                                else:
+                                    false_negatives += 1
+                            else:  # RADIO
+                                if str(human_value) == backend_result.decision:
+                                    matches += 1
+                                else:
+                                    false_positives += 1
+                    
+                    accuracy = (matches / total * 100) if total > 0 else 0
+                    avg_confidence = (confidence_sum / confidence_count * 100) if confidence_count > 0 else 0
+                    
+                    # Write data
+                    data = [
+                        project_name, csv_name, rubric_item.description[:50] + "..." if len(rubric_item.description) > 50 else rubric_item.description,
+                        rubric_item.type, rubric_item.points, matches, false_positives, false_negatives,
+                        f"{accuracy:.1f}%", f"{avg_confidence:.1f}%"
+                    ]
+                    
+                    for col, value in enumerate(data, 1):
+                        cell = ws.cell(row=row, column=col, value=value)
+                        cell.border = border
+                        
+                        # Color code accuracy
+                        if col == 9:  # Accuracy column
+                            if accuracy >= 90:
+                                cell.fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+                            elif accuracy >= 80:
+                                cell.fill = PatternFill(start_color="DDEBF7", end_color="DDEBF7", fill_type="solid")
+                            elif accuracy >= 70:
+                                cell.fill = PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid")
+                            else:
+                                cell.fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+                    
+                    row += 1
+        
+        # Adjust column widths
+        ws.column_dimensions['A'].width = 15
+        ws.column_dimensions['B'].width = 25
+        ws.column_dimensions['C'].width = 40
+        ws.column_dimensions['D'].width = 10
+        ws.column_dimensions['E'].width = 8
+        ws.column_dimensions['F'].width = 10
+        ws.column_dimensions['G'].width = 12
+        ws.column_dimensions['H'].width = 12
+        ws.column_dimensions['I'].width = 10
+        ws.column_dimensions['J'].width = 12
+    
+    def _create_project_comparison_sheet(self, all_project_data, header_fill, header_font, border):
+        """Create project comparison sheet showing summary by project."""
+        
+        ws = self.wb.create_sheet("PROJECT_COMPARISON")
+        
+        # Title
+        title_cell = ws.cell(row=1, column=1, value="Project Comparison Summary")
+        title_cell.font = Font(size=16, bold=True)
+        ws.merge_cells('A1:I1')
+        
+        # Headers
+        headers = [
+            "Project", "Total Assignments", "Total Students", "Total Rubric Items",
+            "Overall Accuracy", "Avg Confidence", "Best Assignment", "Worst Assignment", "Notes"
+        ]
+        
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=3, column=col, value=header)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.border = border
+        
+        row = 4
+        
+        for project_name, evaluation_data_list in all_project_data.items():
+            total_assignments = len(evaluation_data_list)
+            total_students = 0
+            total_items = 0
+            accuracy_scores = []
+            confidence_scores = []
+            assignment_accuracies = []
+            
+            for eval_data in evaluation_data_list:
+                csv_name = eval_data['csv_name']
+                rubric_items = eval_data['rubric_items']
+                human_grades = eval_data['human_grades']
+                backend_results = eval_data['backend_results']
+                
+                students_count = len(human_grades)
+                items_count = len(rubric_items)
+                total_students += students_count
+                total_items += items_count
+                
+                # Calculate accuracy for this assignment
+                matches = 0
+                total_comparisons = 0
+                confidence_sum = 0
+                confidence_count = 0
+                
+                for student_id, student_grade in human_grades.items():
+                    backend_results_student = backend_results.get(student_id, [])
+                    
+                    for rubric_item in rubric_items:
+                        backend_result = next((r for r in backend_results_student if r.rubric_id == rubric_item.id), None)
+                        
+                        if backend_result:
+                            total_comparisons += 1
+                            confidence_sum += backend_result.confidence
+                            confidence_count += 1
+                            
+                            human_value = student_grade.grades.get(rubric_item.id, False)
+                            
+                            if rubric_item.type == "CHECKBOX":
+                                backend_bool = backend_result.decision == "check"
+                                if human_value == backend_bool:
+                                    matches += 1
+                            else:  # RADIO
+                                if str(human_value) == backend_result.decision:
+                                    matches += 1
+                
+                assignment_accuracy = (matches / total_comparisons * 100) if total_comparisons > 0 else 0
+                assignment_confidence = (confidence_sum / confidence_count * 100) if confidence_count > 0 else 0
+                
+                accuracy_scores.append(assignment_accuracy)
+                confidence_scores.append(assignment_confidence)
+                assignment_accuracies.append((csv_name, assignment_accuracy))
+            
+            # Calculate overall statistics
+            overall_accuracy = sum(accuracy_scores) / len(accuracy_scores) if accuracy_scores else 0
+            avg_confidence = sum(confidence_scores) / len(confidence_scores) if confidence_scores else 0
+            
+            # Find best and worst assignments
+            assignment_accuracies.sort(key=lambda x: x[1], reverse=True)
+            best_assignment = assignment_accuracies[0][0] if assignment_accuracies else "N/A"
+            worst_assignment = assignment_accuracies[-1][0] if assignment_accuracies else "N/A"
+            
+            # Generate notes
+            notes = []
+            if overall_accuracy >= 90:
+                notes.append("Excellent performance")
+            elif overall_accuracy >= 80:
+                notes.append("Good performance")
+            elif overall_accuracy >= 70:
+                notes.append("Fair performance")
+            else:
+                notes.append("Needs improvement")
+            
+            if avg_confidence >= 85:
+                notes.append("High confidence")
+            elif avg_confidence >= 70:
+                notes.append("Moderate confidence")
+            else:
+                notes.append("Low confidence")
+            
+            # Write data
+            data = [
+                project_name, total_assignments, total_students, total_items,
+                f"{overall_accuracy:.1f}%", f"{avg_confidence:.1f}%", 
+                best_assignment, worst_assignment, "; ".join(notes)
+            ]
+            
+            for col, value in enumerate(data, 1):
+                cell = ws.cell(row=row, column=col, value=value)
+                cell.border = border
+                
+                # Color code overall accuracy
+                if col == 5:  # Overall accuracy column
+                    if overall_accuracy >= 90:
+                        cell.fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+                    elif overall_accuracy >= 80:
+                        cell.fill = PatternFill(start_color="DDEBF7", end_color="DDEBF7", fill_type="solid")
+                    elif overall_accuracy >= 70:
+                        cell.fill = PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid")
+                    else:
+                        cell.fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+            
+            row += 1
+        
+        # Adjust column widths
+        ws.column_dimensions['A'].width = 20
+        ws.column_dimensions['B'].width = 15
+        ws.column_dimensions['C'].width = 15
+        ws.column_dimensions['D'].width = 15
+        ws.column_dimensions['E'].width = 15
+        ws.column_dimensions['F'].width = 15
+        ws.column_dimensions['G'].width = 20
+        ws.column_dimensions['H'].width = 20
+        ws.column_dimensions['I'].width = 30
+    
+    def _create_rubric_analysis_sheet(self, all_project_data, header_fill, header_font, border):
+        """Create rubric type analysis sheet."""
+        
+        ws = self.wb.create_sheet("RUBRIC_TYPE_ANALYSIS")
+        
+        # Title
+        title_cell = ws.cell(row=1, column=1, value="Rubric Type Performance Analysis")
+        title_cell.font = Font(size=16, bold=True)
+        ws.merge_cells('A1:F1')
+        
+        # Collect statistics by rubric type
+        checkbox_stats = []
+        radio_stats = []
+        
+        for project_name, evaluation_data_list in all_project_data.items():
+            for eval_data in evaluation_data_list:
+                csv_name = eval_data['csv_name']
+                rubric_items = eval_data['rubric_items']
+                human_grades = eval_data['human_grades']
+                backend_results = eval_data['backend_results']
+                
+                checkbox_matches = 0
+                checkbox_total = 0
+                checkbox_confidence = 0
+                checkbox_count = 0
+                
+                radio_matches = 0
+                radio_total = 0
+                radio_confidence = 0
+                radio_count = 0
+                
+                for rubric_item in rubric_items:
+                    for student_id, student_grade in human_grades.items():
+                        backend_results_student = backend_results.get(student_id, [])
+                        backend_result = next((r for r in backend_results_student if r.rubric_id == rubric_item.id), None)
+                        
+                        if backend_result:
+                            human_value = student_grade.grades.get(rubric_item.id, False)
+                            
+                            if rubric_item.type == "CHECKBOX":
+                                checkbox_total += 1
+                                checkbox_confidence += backend_result.confidence
+                                checkbox_count += 1
+                                
+                                backend_bool = backend_result.decision == "check"
+                                if human_value == backend_bool:
+                                    checkbox_matches += 1
+                            
+                            else:  # RADIO
+                                radio_total += 1
+                                radio_confidence += backend_result.confidence
+                                radio_count += 1
+                                
+                                if str(human_value) == backend_result.decision:
+                                    radio_matches += 1
+                
+                if checkbox_total > 0:
+                    checkbox_stats.append({
+                        'project': project_name,
+                        'assignment': csv_name,
+                        'accuracy': checkbox_matches / checkbox_total * 100,
+                        'confidence': checkbox_confidence / checkbox_count * 100,
+                        'total': checkbox_total
+                    })
+                
+                if radio_total > 0:
+                    radio_stats.append({
+                        'project': project_name,
+                        'assignment': csv_name,
+                        'accuracy': radio_matches / radio_total * 100,
+                        'confidence': radio_confidence / radio_count * 100,
+                        'total': radio_total
+                    })
+        
+        # Headers for checkbox analysis
+        row = 3
+        ws.cell(row=row, column=1, value="CHECKBOX ITEMS ANALYSIS").font = Font(bold=True, size=12)
+        row += 1
+        
+        headers = ["Project", "Assignment", "Accuracy", "Avg Confidence", "Total Items", "Performance"]
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=row, column=col, value=header)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.border = border
+        
+        row += 1
+        for stat in checkbox_stats:
+            performance = "Excellent" if stat['accuracy'] >= 90 else "Good" if stat['accuracy'] >= 80 else "Fair" if stat['accuracy'] >= 70 else "Poor"
+            data = [stat['project'], stat['assignment'], f"{stat['accuracy']:.1f}%", 
+                   f"{stat['confidence']:.1f}%", stat['total'], performance]
+            
+            for col, value in enumerate(data, 1):
+                cell = ws.cell(row=row, column=col, value=value)
+                cell.border = border
+                
+                if col == 3:  # Accuracy column
+                    if stat['accuracy'] >= 90:
+                        cell.fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+                    elif stat['accuracy'] >= 80:
+                        cell.fill = PatternFill(start_color="DDEBF7", end_color="DDEBF7", fill_type="solid")
+                    elif stat['accuracy'] >= 70:
+                        cell.fill = PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid")
+                    else:
+                        cell.fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+            
+            row += 1
+        
+        # Add spacing and radio analysis
+        row += 2
+        ws.cell(row=row, column=1, value="RADIO ITEMS ANALYSIS").font = Font(bold=True, size=12)
+        row += 1
+        
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=row, column=col, value=header)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.border = border
+        
+        row += 1
+        for stat in radio_stats:
+            performance = "Excellent" if stat['accuracy'] >= 90 else "Good" if stat['accuracy'] >= 80 else "Fair" if stat['accuracy'] >= 70 else "Poor"
+            data = [stat['project'], stat['assignment'], f"{stat['accuracy']:.1f}%", 
+                   f"{stat['confidence']:.1f}%", stat['total'], performance]
+            
+            for col, value in enumerate(data, 1):
+                cell = ws.cell(row=row, column=col, value=value)
+                cell.border = border
+                
+                if col == 3:  # Accuracy column
+                    if stat['accuracy'] >= 90:
+                        cell.fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+                    elif stat['accuracy'] >= 80:
+                        cell.fill = PatternFill(start_color="DDEBF7", end_color="DDEBF7", fill_type="solid")
+                    elif stat['accuracy'] >= 70:
+                        cell.fill = PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid")
+                    else:
+                        cell.fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+            
+            row += 1
+        
+        # Adjust column widths
+        ws.column_dimensions['A'].width = 20
+        ws.column_dimensions['B'].width = 25
+        ws.column_dimensions['C'].width = 12
+        ws.column_dimensions['D'].width = 15
+        ws.column_dimensions['E'].width = 12
+        ws.column_dimensions['F'].width = 15
 
 
 class UnifiedExcelReportGenerator:
@@ -1564,9 +2170,10 @@ async def evaluate_project(
                 print(f"      No source files found for {student_id}")
                 continue
             
-            # Prepare rubric items for backend
+            # Filter and prepare rubric items for backend
+            filtered_rubric_items = filter_rubric_items_for_backend(rubric_items)
             backend_rubric_items = []
-            for rubric_item in rubric_items:
+            for rubric_item in filtered_rubric_items:
                 item_dict = {
                     "id": rubric_item.id,
                     "description": rubric_item.description,
@@ -1713,9 +2320,10 @@ async def evaluate_project_with_points_analysis(
             
                         # Get AI grading
             try:
-                # Convert rubric items to format expected by backend client
+                # Filter and convert rubric items to format expected by backend client
+                filtered_rubric_items = filter_rubric_items_for_backend(rubric_items)
                 backend_rubric_items = []
-                for item in rubric_items:
+                for item in filtered_rubric_items:
                     backend_item = {
                         "id": item.id,
                         "description": item.description,
@@ -1876,9 +2484,10 @@ async def collect_evaluation_tasks(
                     print(f"      ⚠️  No source files found for {student_id}")
                     continue
                 
-                # Prepare rubric items for backend
+                # Filter and prepare rubric items for backend
+                filtered_rubric_items = filter_rubric_items_for_backend(rubric_items)
                 backend_rubric_items = []
-                for rubric_item in rubric_items:
+                for rubric_item in filtered_rubric_items:
                     item_dict = {
                         "id": rubric_item.id,
                         "description": rubric_item.description,
@@ -2109,6 +2718,47 @@ async def generate_reports_from_results(
             print(f"{'='*60}")
             PointsReporter.print_overall_summary(all_comparisons, all_stats)
             PointsReporter.print_rubric_stats(all_stats)
+    
+    # Generate cross-project unified report
+    if projects_data:
+        print(f"\n📊 Generating Cross-Project Unified Report...")
+        try:
+            cross_project_generator = CrossProjectUnifiedReportGenerator()
+            cross_project_output_path = output_dir / "CROSS_PROJECT_UNIFIED_evaluation.xlsx"
+            
+            # Transform projects_data structure to match what CrossProjectUnifiedReportGenerator expects
+            print("   🔄 Transforming data structure...")
+            transformed_projects_data = {}
+            for project_name, project_data in projects_data.items():
+                transformed_projects_data[project_name] = []
+                for csv_name, csv_data in project_data.items():
+                    evaluation_data = {
+                        'csv_name': csv_name,
+                        'rubric_items': csv_data['rubric_items'],
+                        'human_grades': csv_data['human_grades'],
+                        'backend_results': csv_data['backend_results']
+                    }
+                    transformed_projects_data[project_name].append(evaluation_data)
+            print("   ✅ Data structure transformation completed")
+            
+            # Add progress tracking
+            total_projects = len(transformed_projects_data)
+            total_assignments = sum(len(data_list) for data_list in transformed_projects_data.values())
+            print(f"   Processing {total_projects} projects with {total_assignments} total assignments...")
+            
+            cross_project_generator.create_cross_project_report(
+                all_project_data=transformed_projects_data,
+                output_path=cross_project_output_path
+            )
+            
+            print(f"✅ Cross-Project Unified Report created: {cross_project_output_path}")
+            print(f"   📋 Report includes {len(transformed_projects_data)} projects with comprehensive statistics and analysis")
+            
+        except Exception as e:
+            print(f"❌ Failed to generate cross-project unified report: {type(e).__name__}: {e}")
+            print(f"   📍 Error occurred during report generation")
+            import traceback
+            traceback.print_exc()
 
 
 async def main():

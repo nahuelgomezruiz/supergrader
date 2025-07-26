@@ -13,6 +13,7 @@ from app.models import (
 )
 from app.services.llm.service import LLMService
 from app.services.preprocessing import PreprocessingService
+from app.services.rubric_loader import RubricLoaderService
 
 
 class GradingService:
@@ -21,6 +22,7 @@ class GradingService:
     def __init__(self):
         self.llm_service = LLMService()
         self.preprocessing_service = PreprocessingService()
+        self.rubric_loader = RubricLoaderService()
     
     def _estimate_batch_load(self, batch_size: int) -> Dict[str, int]:
         """Estimate the API load for a batch."""
@@ -79,6 +81,9 @@ class GradingService:
             course_id, assignment_id, submission_id, source_files
         )
         
+        # Load full rubric sections for context
+        full_rubric_sections = self.rubric_loader.load_full_rubric_sections(assignment_id)
+        
         total_items = len(rubric_items)
         completed_items = 0
         
@@ -114,7 +119,7 @@ class GradingService:
             
             batch_tasks = []
             for rubric_item in batch:
-                task = self._evaluate_rubric_item(rubric_item, processed_files)
+                task = self._evaluate_rubric_item(rubric_item, processed_files, full_rubric_sections)
                 batch_tasks.append((rubric_item, task))
             
             # Execute all tasks in the batch simultaneously
@@ -163,9 +168,17 @@ class GradingService:
     async def _evaluate_rubric_item(
         self,
         rubric_item: RubricItem,
-        processed_files: Dict[str, str]
+        processed_files: Dict[str, str],
+        full_rubric_sections: Dict[str, List[RubricItem]]
     ) -> GradingDecision:
         """Evaluate a single rubric item with multiple LLM calls and voting."""
+        
+        # Determine which section this rubric item belongs to
+        section_name = self.rubric_loader.get_section_for_rubric_item(rubric_item, full_rubric_sections)
+        section_items = full_rubric_sections.get(section_name, [])
+        
+        # Format the section context
+        section_context = self.rubric_loader.format_section_context(section_items) if section_items else None
         
         # Launch parallel LLM evaluations
         tasks = []
@@ -175,7 +188,8 @@ class GradingService:
                 rubric_description=rubric_item.description,
                 rubric_points=rubric_item.points,
                 rubric_options=rubric_item.options,
-                source_files=processed_files
+                source_files=processed_files,
+                section_context=section_context
             )
             tasks.append(task)
         

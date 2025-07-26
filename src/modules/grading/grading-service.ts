@@ -164,10 +164,14 @@ export class GradingService {
       backendItems.push(backendItem);
     }
 
-    // Filter out zero-point checkbox items (they don't contribute to grade and are often just for human graders)
+    // Filter out zero-point checkbox items and bonus point questions (they don't contribute to grade and are often just for human graders)
     const filteredItems = backendItems.filter(item => {
       if (item.type === 'CHECKBOX' && item.points === 0) {
         console.log(`🚫 Filtering out zero-point checkbox: ${item.id} - "${item.description}"`);
+        return false;
+      }
+      if (item.description && item.description.includes('(Bonus point)')) {
+        console.log(`🚫 Filtering out bonus point question: ${item.id} - "${item.description}"`);
         return false;
       }
       return true;

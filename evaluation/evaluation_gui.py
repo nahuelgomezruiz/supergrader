@@ -394,6 +394,8 @@ class EvaluationGUI:
                 
         if self.is_running:
             self.log(f"Evaluation complete! Results saved to: {run_output_dir}")
+            self.log("📝 Note: Cross-project unified reports are only generated in concurrent processing mode.")
+            self.log("   To get comprehensive statistics across all assignments, please use concurrent mode.")
             
             # Open output directory
             if os.name == 'nt':  # Windows
