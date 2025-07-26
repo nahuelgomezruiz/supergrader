@@ -91,18 +91,8 @@ class GradingService:
         optimal_batch_size = self._optimize_batch_size(total_items)
         total_batches = math.ceil(total_items / optimal_batch_size)
         
-        # Log batch processing plan
-        estimated_load = self._estimate_batch_load(min(optimal_batch_size, total_items))
-        print(f"🚀 Batch Processing Plan:")
-        print(f"   • Total rubric items: {total_items}")
-        print(f"   • Optimal batch size: {optimal_batch_size}")
-        print(f"   • Total batches: {total_batches}")
-        print(f"   • Est. requests per batch: {estimated_load['requests']}")
-        print(f"   • Est. tokens per batch: {estimated_load['tokens']:,}")
-        print(f"   • Parallel LLM calls per rubric: {settings.parallel_llm_calls}")
-        
-        if total_items < settings.batch_size:
-            print(f"ℹ️  Note: Assignment has only {total_items} rubric items - using single batch")
+        # Log concise batch processing plan
+        print(f"🚀 Processing {total_items} rubric items in {total_batches} batches (size: {optimal_batch_size})")
         
         batch_start_time = asyncio.get_event_loop().time()
         
@@ -112,7 +102,7 @@ class GradingService:
             batch = rubric_items[batch_start:batch_end]
             actual_batch_size = len(batch)
             
-            print(f"📦 Processing batch {batch_num}/{total_batches}: items {batch_start+1}-{batch_end} ({actual_batch_size} items)")
+            print(f"📦 Batch {batch_num}/{total_batches}: processing {actual_batch_size} items...")
             
             # Process entire batch in parallel
             batch_task_start = asyncio.get_event_loop().time()
@@ -206,7 +196,10 @@ class GradingService:
             else:
                 valid_verdicts.append(result)
         
-        print(f"📊 Rubric item {rubric_item.id}: {len(valid_verdicts)}/{len(verdicts)} LLM calls succeeded")
+        if failed_count > 0:
+            print(f"⚠️  Rubric item {rubric_item.id}: {len(valid_verdicts)}/{len(verdicts)} LLM calls succeeded")
+        else:
+            print(f"✅ Rubric item {rubric_item.id}: All {len(verdicts)} LLM calls succeeded")
         
         if not valid_verdicts:
             # All calls failed, return low-confidence decision

@@ -2540,9 +2540,7 @@ async def process_evaluation_batch(
 ) -> List[Tuple[EvaluationTask, Any]]:
     """Process a batch of evaluation tasks concurrently."""
     batch_size = len(tasks)
-    print(f"🚀 Processing batch {batch_num}/{total_batches}: {batch_size} students")
-    print(f"   Projects: {len(set(task.project_name for task in tasks))}")
-    print(f"   Assignments: {len(set(f'{task.project_name}/{task.csv_name}' for task in tasks))}")
+    print(f"📦 Student Batch {batch_num}/{total_batches}: processing {batch_size} students...")
     
     async def evaluate_single_task(task: EvaluationTask) -> Tuple[EvaluationTask, Any]:
         """Evaluate a single task."""
@@ -2552,9 +2550,10 @@ async def process_evaluation_batch(
                 source_files=task.source_files,
                 rubric_items=task.rubric_items
             )
+            print(f"✅ Student {task.student_id} ({task.project_name}/{task.csv_name}) completed")
             return (task, results)
         except Exception as e:
-            print(f"❌ Error evaluating {task.project_name}/{task.csv_name}/{task.student_id}: {e}")
+            print(f"❌ Student {task.student_id} ({task.project_name}/{task.csv_name}) failed: {type(e).__name__}: {e}")
             return (task, None)
     
     # Process all tasks in the batch concurrently
@@ -2563,7 +2562,12 @@ async def process_evaluation_batch(
     batch_duration = asyncio.get_event_loop().time() - batch_start_time
     
     successful_results = [r for r in results if r[1] is not None]
-    print(f"✅ Batch {batch_num} completed in {batch_duration:.1f}s: {len(successful_results)}/{batch_size} successful")
+    failed_count = batch_size - len(successful_results)
+    
+    if failed_count > 0:
+        print(f"⚠️  Student Batch {batch_num} completed in {batch_duration:.1f}s: {len(successful_results)}/{batch_size} successful, {failed_count} failed")
+    else:
+        print(f"✅ Student Batch {batch_num} completed in {batch_duration:.1f}s: All {batch_size} students successful")
     
     return results
 
@@ -2578,8 +2582,6 @@ async def evaluate_projects_concurrent(
 ) -> None:
     """Evaluate multiple projects using concurrent batch processing."""
     
-    print(f"🎯 Starting concurrent evaluation with batch size: {concurrent_batch_size}")
-    
     # Step 1: Collect all evaluation tasks
     all_tasks = await collect_evaluation_tasks(projects_dir, num_students)
     
@@ -2589,7 +2591,7 @@ async def evaluate_projects_concurrent(
     
     # Step 2: Process tasks in concurrent batches
     total_batches = (len(all_tasks) + concurrent_batch_size - 1) // concurrent_batch_size
-    print(f"📦 Processing {len(all_tasks)} tasks in {total_batches} concurrent batches")
+    print(f"🎯 Starting concurrent evaluation: {len(all_tasks)} students in {total_batches} batches (size: {concurrent_batch_size})")
     
     all_results = []
     overall_start_time = asyncio.get_event_loop().time()
@@ -2607,10 +2609,11 @@ async def evaluate_projects_concurrent(
     overall_duration = asyncio.get_event_loop().time() - overall_start_time
     successful_count = len([r for r in all_results if r[1] is not None])
     
-    print(f"\n🎉 Concurrent evaluation completed!")
-    print(f"   Total time: {overall_duration:.1f}s")
-    print(f"   Successful evaluations: {successful_count}/{len(all_tasks)}")
-    print(f"   Average time per student: {overall_duration/len(all_tasks):.2f}s")
+    failed_count = len(all_tasks) - successful_count
+    if failed_count > 0:
+        print(f"\n⚠️  Concurrent evaluation completed in {overall_duration:.1f}s: {successful_count}/{len(all_tasks)} successful, {failed_count} failed")
+    else:
+        print(f"\n✅ Concurrent evaluation completed in {overall_duration:.1f}s: All {len(all_tasks)} students successful")
     print(f"   Throughput: {len(all_tasks)/overall_duration:.1f} students/second")
     
     # Step 3: Group results by project and generate reports

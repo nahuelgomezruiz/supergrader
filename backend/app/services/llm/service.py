@@ -122,31 +122,16 @@ class LLMService:
                     rubric_description, rubric_options, source_files, language, section_context
                 )
             
-            # Print the prompt for debugging
-            print(f"\n{'='*80}")
-            print(f"🤖 PROMPT SENT TO {provider.provider_name.upper()} ({provider.model})")
-            print(f"{'='*80}")
-            print(prompt)
-            print(f"{'='*80}")
-            print()
-            
             # Call the LLM
             response = await provider.call_llm(prompt)
             
-            # Print the response for debugging
-            print(f"📤 RESPONSE FROM {provider.provider_name.upper()}")
-            print(f"{'='*80}")
-            print(response)
-            print(f"{'='*80}")
-            print()
-            
             # Parse the response
-            return self._parse_response(response, rubric_type)
+            result = self._parse_response(response, rubric_type)
+            print(f"✅ LLM call succeeded: {rubric_description[:30]}...")
+            return result
             
         except Exception as e:
-            print(f"🚨 LLM evaluation failed: {type(e).__name__}: {e}")
-            print(f"🔍 Context: rubric_type={rubric_type}, description='{rubric_description[:50]}...'")
-            print(f"🔍 Provider: {provider.provider_name}")
+            print(f"❌ LLM call failed: {rubric_description[:30]}... - {type(e).__name__}: {e}")
             raise
     
     def _parse_response(
@@ -170,18 +155,11 @@ class LLMService:
             try:
                 data = json.loads(json_str)
             except json.JSONDecodeError as e:
-                print(f"🚨 JSON parsing failed: {e}")
-                print(f"🔍 Attempted to parse: {json_str[:200]}...")
-                print(f"🔍 Full response: {response[:500]}...")
                 raise ValueError(f"Failed to parse LLM response as JSON: {e}")
-            
-            # Log the parsed data for debugging validation errors
-            print(f"🔍 Parsed JSON data: {data}")
             
             # Handle null comment values (convert to empty string)
             if data.get('comment') is None:
                 data['comment'] = ""
-                print(f"🔧 Converted null comment to empty string")
             
             # Create appropriate verdict model
             if rubric_type == RubricType.CHECKBOX:
@@ -190,9 +168,7 @@ class LLMService:
                 return RadioVerdict(**data)
                 
         except Exception as e:
-            print(f"🚨 Response parsing failed: {type(e).__name__}: {e}")
-            print(f"🔍 Rubric type: {rubric_type}")
-            print(f"🔍 Response length: {len(response)} chars")
+            print(f"❌ Response parsing failed: {type(e).__name__}: {e}")
             raise
     
     @property

@@ -88,10 +88,8 @@ OUTPUT FORMAT (JSON only, no extra text):
 ```
 
 GENERAL CONSIDERATIONS:
-- Be somewhat lenient when answering questions about testing. A good effort of a couple
-hundred lines of unit tests is enough.
-- Admit documentation of the testing that shows a good enough effort of showing
-the debugging process.
+- Be lenient, but not overly so, with testing questions.
+- Remember that testing files (apart from unit_tests.h) get truncated.
 
 Remember: think internally first, then output **only** the JSON block."""
     
@@ -158,9 +156,7 @@ OUTPUT FORMAT (JSON only, no extra text):
 ```
 
 GENERAL CONSIDERATIONS:
-- Be somewhat lenient when answering questions about testing. A good effort of a couple
-hundred lines of unit tests is enough.
-- Admit documentation of the testing that shows a good enough effort of showing
-the debugging process.
+- Be lenient, but not overly so, with testing questions.
+- Remember that testing files (apart from unit_tests.h) get truncated.
 
 Remember: think internally first, then output **only** the JSON block with the letter of your chosen option.""" 
