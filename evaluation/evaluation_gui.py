@@ -8,7 +8,7 @@ import os
 from datetime import datetime
 from evaluation_dashboard import (
     BackendClient, CSVParser, ExcelReportGenerator,
-    evaluate_project, create_summary_report
+    evaluate_project, evaluate_projects_concurrent, DEFAULT_CONCURRENT_BATCH_SIZE
 )
 
 
@@ -22,6 +22,8 @@ class EvaluationGUI:
         self.num_students_var = tk.IntVar(value=5)
         self.backend_url_var = tk.StringVar(value="http://localhost:8000")
         self.output_dir_var = tk.StringVar(value="evaluation_results")
+        self.concurrent_batch_size_var = tk.IntVar(value=DEFAULT_CONCURRENT_BATCH_SIZE)
+        self.processing_mode_var = tk.StringVar(value="concurrent")
         self.selected_projects = {}
         self.is_running = False
         
@@ -78,6 +80,40 @@ class EvaluationGUI:
         
         output_entry = ttk.Entry(output_frame, textvariable=self.output_dir_var, width=30)
         output_entry.pack(side=tk.LEFT)
+        
+        # Concurrent processing options
+        ttk.Label(config_frame, text="Concurrent batch size:").grid(
+            row=3, column=0, sticky=tk.W, pady=5
+        )
+        
+        concurrent_spinbox = ttk.Spinbox(
+            config_frame,
+            from_=1,
+            to=100,
+            textvariable=self.concurrent_batch_size_var,
+            width=10
+        )
+        concurrent_spinbox.grid(row=3, column=1, sticky=tk.W, padx=10)
+        
+        # Processing mode
+        ttk.Label(config_frame, text="Processing mode:").grid(
+            row=4, column=0, sticky=tk.W, pady=5
+        )
+        
+        mode_frame = ttk.Frame(config_frame)
+        mode_frame.grid(row=4, column=1, sticky=tk.W, padx=10)
+        
+        concurrent_radio = ttk.Radiobutton(
+            mode_frame, text="Concurrent (faster)", variable=self.processing_mode_var, 
+            value="concurrent"
+        )
+        concurrent_radio.pack(side=tk.LEFT)
+        
+        sequential_radio = ttk.Radiobutton(
+            mode_frame, text="Sequential (original)", variable=self.processing_mode_var, 
+            value="sequential"
+        )
+        sequential_radio.pack(side=tk.LEFT, padx=(10, 0))
         
         browse_button = ttk.Button(
             output_frame,
@@ -310,34 +346,53 @@ class EvaluationGUI:
         
         num_students = self.num_students_var.get()
         
+        # Get processing configuration
+        concurrent_batch_size = int(self.concurrent_batch_size_var.get())
+        use_concurrent = self.processing_mode_var.get() == "concurrent"
+        
+        self.log(f"Processing mode: {'Concurrent' if use_concurrent else 'Sequential'}")
+        if use_concurrent:
+            self.log(f"Concurrent batch size: {concurrent_batch_size}")
+        
         # Run evaluations
         async with BackendClient(backend_url) as client:
-            for project_name in selected_projects:
-                if not self.is_running:
-                    self.log("Evaluation stopped by user")
-                    break
-                    
-                project_path = Path("eval-data") / project_name
+            if use_concurrent:
+                # Use new concurrent batch processing for all projects
+                projects_dir = Path("eval-data")
+                self.root.after(0, lambda: self.progress_var.set("Concurrent processing..."))
                 
-                self.root.after(
-                    0,
-                    lambda p=project_name: self.progress_var.set(f"Evaluating {p}...")
-                )
-                
-                await evaluate_project(
-                    project_path=project_path,
+                await evaluate_projects_concurrent(
+                    projects_dir=projects_dir,
                     backend_client=client,
                     num_students=num_students,
-                    output_dir=run_output_dir
+                    output_dir=run_output_dir,
+                    concurrent_batch_size=concurrent_batch_size,
+                    points_analysis=False  # Could be made configurable
                 )
-                
-                self.log(f"Completed: {project_name}")
+            else:
+                # Use original sequential processing
+                for project_name in selected_projects:
+                    if not self.is_running:
+                        self.log("Evaluation stopped by user")
+                        break
+                        
+                    project_path = Path("eval-data") / project_name
+                    
+                    self.root.after(
+                        0,
+                        lambda p=project_name: self.progress_var.set(f"Evaluating {p}...")
+                    )
+                    
+                    await evaluate_project(
+                        project_path=project_path,
+                        backend_client=client,
+                        num_students=num_students,
+                        output_dir=run_output_dir
+                    )
+                    
+                    self.log(f"Completed: {project_name}")
                 
         if self.is_running:
-            # Create summary report
-            self.log("Creating summary report...")
-            create_summary_report(run_output_dir)
-            
             self.log(f"Evaluation complete! Results saved to: {run_output_dir}")
             
             # Open output directory

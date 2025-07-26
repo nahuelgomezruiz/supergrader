@@ -56,9 +56,8 @@ def _validate_rubric_items(rubric_items: List[RubricItem]) -> List[str]:
         if not item.description or not item.description.strip():
             errors.append(f"Rubric item {item.id} has empty description")
         
-        # Check points
-        if item.points < 0:
-            errors.append(f"Rubric item {item.id} has negative points: {item.points}")
+        # Allow negative point values so we can support deduction-based rubrics
+        # (e.g., -2 points for missing tests). No validation error needed here.
         
         # Check radio button options
         if item.type == "RADIO":
