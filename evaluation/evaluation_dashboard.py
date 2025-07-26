@@ -116,8 +116,8 @@ def filter_rubric_items_for_backend(rubric_items: List[RubricItem]) -> List[Rubr
     filtered_count = 0
     
     for rubric_item in rubric_items:
-        # Filter out bonus point questions 
-        if rubric_item.description and '(Bonus point)' in rubric_item.description:
+        # Filter out bonus point questions (case-insensitive)
+        if rubric_item.description and '(bonus point)' in rubric_item.description.lower():
             print(f"🚫 Filtering out bonus point question: {rubric_item.id} - \"{rubric_item.description[:60]}...\"")
             filtered_count += 1
             continue

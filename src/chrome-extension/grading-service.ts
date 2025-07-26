@@ -503,7 +503,7 @@ class ChromeGradingService {
         console.log(`🚫 Filtering out zero-point checkbox: ${item.id} - "${item.description}"`);
         return false;
       }
-      if (item.description && item.description.includes('(Bonus point)')) {
+      if (item.description && item.description.toLowerCase().includes('(bonus point)')) {
         console.log(`🚫 Filtering out bonus point question: ${item.id} - "${item.description}"`);
         return false;
       }
