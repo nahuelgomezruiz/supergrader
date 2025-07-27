@@ -110,6 +110,68 @@ class RubricItemStats:
     sample_size: int
 
 
+def add_credit_indicators_to_radio_options(options: Dict[str, Dict[str, str]]) -> Dict[str, str]:
+    """Add credit indicators to radio button options based on point values."""
+    if not options:
+        return {}
+    
+    # Find the maximum point value
+    max_points = 0.0
+    for option_data in options.values():
+        if isinstance(option_data, dict) and 'points' in option_data:
+            try:
+                points = float(option_data['points'])
+                max_points = max(max_points, points)
+            except (ValueError, TypeError):
+                pass
+    
+    backend_options = {}
+    for letter, option_data in options.items():
+        if isinstance(option_data, dict) and 'text' in option_data:
+            text = option_data['text']
+            try:
+                points = float(option_data.get('points', 0))
+                
+                # Add credit indicator based on point value
+                if points == max_points and points > 0:
+                    text += " (Full credit)"
+                elif points > 0 and points < max_points:
+                    text += " (Partial credit)"
+                elif points == 0:
+                    text += " (No credit)"
+                    
+                backend_options[letter] = text
+            except (ValueError, TypeError):
+                # Fallback if points parsing fails
+                backend_options[letter] = text + " (No credit)"
+        else:
+            # Fallback for old format
+            backend_options[letter] = str(option_data)
+    
+    return backend_options
+
+
+def print_radio_button_json(backend_rubric_items, context=""):
+    """Print radio button JSON being sent to backend for debugging."""
+    radio_items = [item for item in backend_rubric_items if item.get("type") == "RADIO"]
+    
+    if radio_items:
+        print(f"📻 {context}Sending {len(radio_items)} radio button(s) to backend:")
+        for radio_item in radio_items:
+            print(f"   🎯 {radio_item['id']}: {radio_item['description']} ({radio_item['points']} pts)")
+            if 'options' in radio_item:
+                for letter, text in radio_item['options'].items():
+                    credit_type = "❓"
+                    if text.endswith("(Full credit)"):
+                        credit_type = "🟢"
+                    elif text.endswith("(Partial credit)"):
+                        credit_type = "🟡"
+                    elif text.endswith("(No credit)"):
+                        credit_type = "🔴"
+                    
+                    print(f"      {letter}: {credit_type} \"{text[:60]}{'...' if len(text) > 60 else ''}\"")
+
+
 def filter_rubric_items_for_backend(rubric_items: List[RubricItem]) -> List[RubricItem]:
     """Filter out bonus point questions and other items that shouldn't be sent to backend."""
     filtered_items = []
@@ -2184,15 +2246,8 @@ async def evaluate_project(
                     # Convert letter-based options to backend format
                     if rubric_item.type == "RADIO":
                         # Options are in format: {"Q": {"text": "...", "points": "..."}, "W": {...}}
-                        # Backend expects: {"Q": "option text", "W": "option text"}
-                        backend_options = {}
-                        for letter, option_data in rubric_item.options.items():
-                            if isinstance(option_data, dict) and 'text' in option_data:
-                                backend_options[letter] = option_data['text']
-                            else:
-                                # Fallback for old format
-                                backend_options[letter] = str(option_data)
-                        item_dict["options"] = backend_options
+                        # Backend expects: {"Q": "option text with credit indicator", "W": "option text with credit indicator"}
+                        item_dict["options"] = add_credit_indicators_to_radio_options(rubric_item.options)
                     else:
                         item_dict["options"] = rubric_item.options
                 backend_rubric_items.append(item_dict)
@@ -2200,10 +2255,13 @@ async def evaluate_project(
             # Send to backend
             assignment_context = {
                 "course_id": project_path.name,
-                "assignment_id": csv_file.stem,
+                "assignment_id": project_path.name,  # Use project directory name for rubric mapping
                 "submission_id": student_id,
                 "assignment_name": f"{project_path.name} - {csv_file.stem}"
             }
+            
+            # Print radio button JSON for debugging
+            print_radio_button_json(backend_rubric_items, f"Student {student_id}: ")
             
             try:
                 results = await backend_client.grade_submission(
@@ -2331,14 +2389,20 @@ async def evaluate_project_with_points_analysis(
                         "type": item.type.upper()
                     }
                     if item.options:
-                        backend_item["options"] = item.options
+                        if str(item.type).upper() == "RADIO":
+                            backend_item["options"] = add_credit_indicators_to_radio_options(item.options)
+                        else:
+                            backend_item["options"] = item.options
                     backend_rubric_items.append(backend_item)
+                
+                # Print radio button JSON for debugging
+                print_radio_button_json(backend_rubric_items, f"Points Analysis - Student {student_id}: ")
                 
                 # Call backend client
                 results = await backend_client.grade_submission(
                     assignment_context={
                         "course_id": project_path.name,
-                        "assignment_id": csv_file.stem,
+                        "assignment_id": project_path.name,  # Use project directory name for rubric mapping
                         "submission_id": student_id,
                         "assignment_name": f"{project_path.name} - {csv_file.stem}"
                     },
@@ -2496,13 +2560,7 @@ async def collect_evaluation_tasks(
                     }
                     if rubric_item.options:
                         if rubric_item.type == "RADIO":
-                            backend_options = {}
-                            for letter, option_data in rubric_item.options.items():
-                                if isinstance(option_data, dict) and 'text' in option_data:
-                                    backend_options[letter] = option_data['text']
-                                else:
-                                    backend_options[letter] = str(option_data)
-                            item_dict["options"] = backend_options
+                            item_dict["options"] = add_credit_indicators_to_radio_options(rubric_item.options)
                         else:
                             item_dict["options"] = rubric_item.options
                     backend_rubric_items.append(item_dict)
@@ -2510,7 +2568,7 @@ async def collect_evaluation_tasks(
                 # Create assignment context
                 assignment_context = {
                     "course_id": project_dir.name,
-                    "assignment_id": csv_file.stem,
+                    "assignment_id": project_dir.name,  # Use project directory name for rubric mapping
                     "submission_id": student_id,
                     "assignment_name": f"{project_dir.name} - {csv_file.stem}"
                 }
@@ -2545,6 +2603,9 @@ async def process_evaluation_batch(
     async def evaluate_single_task(task: EvaluationTask) -> Tuple[EvaluationTask, Any]:
         """Evaluate a single task."""
         try:
+            # Print radio button JSON for debugging
+            print_radio_button_json(task.rubric_items, f"Concurrent - Student {task.student_id}: ")
+            
             results = await backend_client.grade_submission(
                 assignment_context=task.assignment_context,
                 source_files=task.source_files,

@@ -84,6 +84,10 @@ class PreprocessingService:
     def _is_test_file(self, filename: str) -> bool:
         """Check if a file is a test file based on patterns."""
         filename_lower = filename.lower()
+        # Special case: do NOT treat unit_tests.h / unit_tests.cpp as test files – we need full content
+        # because rubric items inspect actual tests for isolation, single-case coverage, etc.
+        if filename_lower.endswith("unit_tests.h") or filename_lower.endswith("unit_tests.cpp"):
+            return False
         
         # Check for test patterns in filename
         for pattern in TEST_PATTERNS:

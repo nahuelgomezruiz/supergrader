@@ -65,7 +65,7 @@ Entire rubric for this section (for context only):
 Rubric item (CHECKBOX, {points} pts):
 «{description}»
 
-Student submission (trimmed):
+Student submission:
 {files_section}
 
 INSTRUCTIONS:
@@ -88,8 +88,13 @@ OUTPUT FORMAT (JSON only, no extra text):
 ```
 
 GENERAL CONSIDERATIONS:
-- Be lenient, but not overly so, with testing questions.
-- Remember that testing files (apart from unit_tests.h) get truncated.
+- When evaluation the efficacy of the testing description on the README, it is ok if the
+student is not extremely specific or cronological. Be somewhat lenient.
+- To decide if the testing is adequately documented, look if either most unit
+tests have a comment explaining what they are testing or if the README has a
+very detailed description of the testing process.
+- When evaluating the testing of specific components, such as functions or
+classes, look if the SPECIFIC tests described on the rubric are present.
 
 Remember: think internally first, then output **only** the JSON block."""
     
@@ -133,7 +138,7 @@ Rubric item (RADIO):
 Options (pick exactly one letter):
 {options_section}
 
-Student submission (trimmed):
+Student submission:
 {files_section}
 
 INSTRUCTIONS:
@@ -142,8 +147,10 @@ The above rubric section is provided for context only. Your task is to evaluate 
 TASKS – for this radio item only:
 1. Select the **letter** (Q, W, E, R, etc.) of the option that best fits the student code.
 2. Gather the most relevant evidence lines for your choice (file + line range).
-3. Draft a short feedback comment explaining your choice (for all options, regardless of points).
-4. Estimate a confidence percentage (0‑100).
+3. Draft a short feedback comment explaining your choice (for all options,
+regardless of points).
+4. Consider whether any other option could reasonably apply. If so, mention it in your comment and explain why it might be plausible.
+5. Estimate a confidence percentage (0‑100).
 
 OUTPUT FORMAT (JSON only, no extra text):
 ```json
@@ -156,7 +163,12 @@ OUTPUT FORMAT (JSON only, no extra text):
 ```
 
 GENERAL CONSIDERATIONS:
-- Be lenient, but not overly so, with testing questions.
-- Remember that testing files (apart from unit_tests.h) get truncated.
+- When evaluation the efficacy of the testing description on the README, it is ok if the
+student is not extremely specific or cronological. Be somewhat lenient.
+- To decide if the testing is adequately documented, look if either most unit
+tests have a comment explaining what they are testing or if the README has a
+very detailed description of the testing process.
+- When evaluating the testing of specific components, such as functions or
+classes, look if the SPECIFIC tests described on the rubric are present.
 
 Remember: think internally first, then output **only** the JSON block with the letter of your chosen option.""" 

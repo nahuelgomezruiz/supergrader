@@ -70,13 +70,18 @@ def generate_example_json():
                 "type": rubric_item.type
             }
             if rubric_item.options:
-                item_dict["options"] = rubric_item.options
+                if rubric_item.type == "RADIO":
+                    # Import the function from evaluation_dashboard
+                    from evaluation_dashboard import add_credit_indicators_to_radio_options
+                    item_dict["options"] = add_credit_indicators_to_radio_options(rubric_item.options)
+                else:
+                    item_dict["options"] = rubric_item.options
             backend_rubric_items.append(item_dict)
         
         # Create assignment context
         assignment_context = {
             "course_id": project_name,
-            "assignment_id": csv_file.stem,
+            "assignment_id": project_name,  # Use project directory name for rubric mapping
             "submission_id": first_student_id,
             "assignment_name": f"{project_name} - {csv_file.stem}"
         }
