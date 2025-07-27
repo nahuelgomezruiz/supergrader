@@ -167,6 +167,10 @@ declare class GradescopeAPI {
      */
     private downloadIndividualFiles;
     /**
+     * Download file with retry logic
+     */
+    private downloadFileWithRetry;
+    /**
      * Download individual file and return processed content
      */
     private downloadFile;

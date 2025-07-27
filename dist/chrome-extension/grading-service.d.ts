@@ -71,6 +71,9 @@ declare class ChromeGradingService {
     private feedbackUI;
     private cachedDecisions;
     private cachedFiles;
+    private cachedNestedElements;
+    private cachedNestedData;
+    private cachedRadioOptions;
     constructor();
     /**
      * Generate cache key for submission files based on course and base submission identifier
@@ -161,7 +164,12 @@ declare class ChromeGradingService {
      */
     private displaySingleSuggestion;
     /**
+     * Clear all cached data (useful when navigating to a new submission)
+     */
+    private clearCache;
+    /**
      * Set up listener to detect when groups are expanded/collapsed
+     * Note: With caching, this is mainly for edge cases where cache misses occur
      */
     private setupToggleListener;
 }

@@ -665,32 +665,109 @@ class GradescopeAPI {
       metadata: this.createMetadata(detectedFiles.length, 'individual') 
     };
     
-    for (const fileInfo of detectedFiles) {
-      const fileName = this.cleanFileName(fileInfo.fileName || 'unknown');
-      if (!fileName || !this.shouldProcessFile(fileName, result.metadata)) continue;
-
-      try {
-        const downloadUrl = this.getDownloadUrl(fileInfo, submissionId);
-        if (!downloadUrl) {
-          this.recordError(result.metadata, `No download URL for: ${fileName}`);
-          continue;
-        }
-
-        const content = await this.downloadFile(downloadUrl, fileName);
-        if (content) {
-          result.files[fileName] = content;
-          this.updateMetadata(result.metadata, fileName, content);
-          console.log(`✅ Downloaded: ${fileName} (${content.size} chars)`);
-        }
-
-      } catch (error) {
-        console.error(`❌ Failed to download ${fileName}:`, (error as Error).message);
-        this.recordError(result.metadata, `Error downloading ${fileName}: ${(error as Error).message}`);
+    // Implement concurrent download with rate limiting
+    const MAX_CONCURRENT_DOWNLOADS = 3; // Limit concurrent requests
+    const RETRY_ATTEMPTS = 3;
+    const RETRY_DELAY_MS = 1000;
+    
+    // Process files in chunks to avoid overwhelming the server
+    const downloadQueue = [...detectedFiles];
+    const activeDownloads = new Map<string, Promise<any>>();
+    const failedDownloads: Array<{fileInfo: FileInfo, attempts: number}> = [];
+    
+    while (downloadQueue.length > 0 || activeDownloads.size > 0 || failedDownloads.length > 0) {
+      // Start new downloads if we have capacity
+      while (activeDownloads.size < MAX_CONCURRENT_DOWNLOADS && downloadQueue.length > 0) {
+        const fileInfo = downloadQueue.shift()!;
+        const fileName = this.cleanFileName(fileInfo.fileName || 'unknown');
+        
+        if (!fileName || !this.shouldProcessFile(fileName, result.metadata)) continue;
+        
+        const downloadPromise = this.downloadFileWithRetry(
+          fileInfo, 
+          fileName, 
+          submissionId, 
+          RETRY_ATTEMPTS,
+          RETRY_DELAY_MS
+        ).then(content => {
+          if (content) {
+            result.files[fileName] = content;
+            this.updateMetadata(result.metadata, fileName, content);
+            console.log(`✅ Downloaded: ${fileName} (${content.size} chars)`);
+          }
+          activeDownloads.delete(fileName);
+        }).catch(error => {
+          console.error(`❌ Failed to download ${fileName} after ${RETRY_ATTEMPTS} attempts:`, error.message);
+          this.recordError(result.metadata, `Error downloading ${fileName}: ${error.message}`);
+          activeDownloads.delete(fileName);
+        });
+        
+        activeDownloads.set(fileName, downloadPromise);
+      }
+      
+      // Wait for at least one download to complete before continuing
+      if (activeDownloads.size > 0) {
+        await Promise.race(Array.from(activeDownloads.values()));
+      }
+      
+      // Process any failed downloads that need retry
+      if (activeDownloads.size === 0 && failedDownloads.length > 0 && downloadQueue.length === 0) {
+        // Add failed downloads back to queue with delay
+        console.log(`🔄 Retrying ${failedDownloads.length} failed downloads...`);
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+        downloadQueue.push(...failedDownloads.map(f => f.fileInfo));
+        failedDownloads.length = 0;
       }
     }
 
     console.log(`📊 Download complete: ${result.metadata.supportedFiles}/${result.metadata.totalFiles} files`);
     return result;
+  }
+
+  /**
+   * Download file with retry logic
+   */
+  private async downloadFileWithRetry(
+    fileInfo: FileInfo,
+    fileName: string,
+    submissionId: string,
+    maxAttempts: number,
+    retryDelay: number
+  ): Promise<FileContent | null> {
+    let lastError: Error | null = null;
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const downloadUrl = this.getDownloadUrl(fileInfo, submissionId);
+        if (!downloadUrl) {
+          throw new Error(`No download URL for: ${fileName}`);
+        }
+        
+        const content = await this.downloadFile(downloadUrl, fileName);
+        return content; // Success!
+        
+      } catch (error) {
+        lastError = error as Error;
+        
+        // Check if it's a rate limit error
+        if (lastError.message.includes('Too many concurrent requests') || 
+            lastError.message.includes('429') ||
+            lastError.message.includes('rate limit')) {
+          
+          if (attempt < maxAttempts) {
+            const delay = retryDelay * attempt; // Exponential backoff
+            console.log(`⏳ Rate limited on ${fileName}, retrying in ${delay}ms (attempt ${attempt}/${maxAttempts})...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+        }
+        
+        // For other errors, fail immediately
+        throw lastError;
+      }
+    }
+    
+    throw lastError || new Error(`Failed to download ${fileName} after ${maxAttempts} attempts`);
   }
 
   /**

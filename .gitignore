@@ -37,6 +37,6 @@ Thumbs.db
 # Redis dump
 dump.rdb
 
-# student assignments
+# evaluation data
 eval-data
 evaluation_results

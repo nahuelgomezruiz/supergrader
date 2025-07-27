@@ -263,6 +263,11 @@ class ChromeGradingService {
   private feedbackUI: SimpleFeedbackUI;
   private cachedDecisions: Map<string, any> = new Map();
   private cachedFiles: Map<string, any> = new Map(); // Cache for downloaded files
+  
+  // Enhanced caching system for nested data
+  private cachedNestedElements: Map<string, HTMLElement> = new Map(); // Cache DOM elements for nested items
+  private cachedNestedData: Map<string, BackendRubricItem[]> = new Map(); // Cache extracted nested checkbox data
+  private cachedRadioOptions: Map<string, Record<string, string>> = new Map(); // Cache radio options
 
   constructor() {
     this.backendUrl = 'http://localhost:8000';
@@ -615,6 +620,9 @@ class ChromeGradingService {
         const childId = keyEl.textContent?.trim() || `${index}`;
         const itemId = `${parentId}-${childId}`; // Create hierarchical ID like "1-Q"
         
+        // Cache the DOM element for future use
+        this.cachedNestedElements.set(itemId, elem as HTMLElement);
+        
         // Extract text with proper spacing for list items
         let description = this.extractTextWithSpacing(descEl);
         description = description.replace(/^Grading comment:\s*/i, '').trim();
@@ -781,12 +789,24 @@ class ChromeGradingService {
         elementClasses: item.element?.className
       });
       
-      if (isNestedGroup && !isRadio) {
-        // This is a nested checkbox group - expand it and extract individual items
-        console.log(`📦 Expanding nested checkbox group: ${item.id} - ${cleanDescription}`);
-        const nestedItems = await this.extractNestedCheckboxes(item.element, item.id, cleanDescription);
-        console.log(`  ✅ Extracted ${nestedItems.length} nested items`);
-        backendItems.push(...nestedItems);
+              if (isNestedGroup && !isRadio) {
+          // This is a nested checkbox group - use cached data or extract if needed
+          console.log(`📦 Processing nested checkbox group: ${item.id} - ${cleanDescription}`);
+          let nestedItems = this.cachedNestedData.get(item.id);
+          
+          if (!nestedItems) {
+            // Cache miss - extract and cache the data
+            console.log(`🔄 Cache miss for ${item.id}, extracting and caching...`);
+            nestedItems = await this.extractNestedCheckboxes(item.element, item.id, cleanDescription);
+            // Cache the extracted data for future use
+            this.cachedNestedData.set(item.id, nestedItems);
+          } else {
+            console.log(`✅ Using cached data for ${item.id} (${nestedItems.length} items)`);
+          }
+          
+          if (nestedItems) {
+            backendItems.push(...nestedItems);
+          }
       } else if (isRadio && item.element) {
         // This is a radio button group
         const radioTitle = cleanDescription.split('(')[0].trim();
@@ -799,7 +819,16 @@ class ChromeGradingService {
           type: 'RADIO'
         };
         
-        const options = await this.extractRadioOptions(item.element);
+        // Use cached radio options or extract if needed
+        let options = this.cachedRadioOptions.get(item.id);
+        if (!options) {
+          console.log(`🔄 Cache miss for radio options ${item.id}, extracting...`);
+          options = await this.extractRadioOptions(item.element);
+          this.cachedRadioOptions.set(item.id, options);
+        } else {
+          console.log(`✅ Using cached radio options for ${item.id}`);
+        }
+        
         if (Object.keys(options).length > 0) {
           backendItem.options = options;
           console.log(`  Found ${Object.keys(options).length} options:`, options);
@@ -907,8 +936,9 @@ class ChromeGradingService {
   async gradeSubmission(onProgress?: (event: GradingEvent) => void): Promise<void> {
     console.log('🚀 Starting grading process...');
 
-    // Clear any existing feedback boxes
+    // Clear any existing feedback boxes and cached rubric data
     this.feedbackUI.clearAllSuggestions();
+    this.clearCache();
 
     // Extract assignment context
     const context = this.extractAssignmentContext();
@@ -1111,20 +1141,35 @@ class ChromeGradingService {
       
       // If not found directly, check if it's a nested checkbox (format: "parentId-childId")
       if (!targetItem && decision.rubric_item_id.includes('-')) {
-        const [parentId, childId] = decision.rubric_item_id.split('-');
-        const parentItem = rubricResult.items.find((item: any) => item.id === parentId);
-        
-        if (parentItem && parentItem.itemType === 'CHECKBOX_GROUP') {
-          console.log(`🔍 Looking for nested checkbox ${childId} in parent group ${parentId}`);
-          const nestedElement = await this.findNestedCheckboxElement(parentItem.element, childId);
+        // First check if we have the element cached
+        const cachedElement = this.cachedNestedElements.get(decision.rubric_item_id);
+        if (cachedElement) {
+          console.log(`✅ Using cached element for nested checkbox ${decision.rubric_item_id}`);
+          targetItem = {
+            id: decision.rubric_item_id,
+            element: cachedElement,
+            itemType: 'NESTED_CHECKBOX'
+          };
+        } else {
+          // Fallback to dynamic lookup (for backward compatibility)
+          const [parentId, childId] = decision.rubric_item_id.split('-');
+          const parentItem = rubricResult.items.find((item: any) => item.id === parentId);
           
-          if (nestedElement) {
-            targetItem = {
-              id: decision.rubric_item_id,
-              element: nestedElement,
-              itemType: 'NESTED_CHECKBOX'
-            };
-            console.log(`✅ Found nested checkbox element for ${decision.rubric_item_id}`);
+          if (parentItem && parentItem.itemType === 'CHECKBOX_GROUP') {
+            console.log(`🔍 Looking for nested checkbox ${childId} in parent group ${parentId}`);
+            const nestedElement = await this.findNestedCheckboxElement(parentItem.element, childId);
+            
+            if (nestedElement) {
+              // Cache the found element for future use
+              this.cachedNestedElements.set(decision.rubric_item_id, nestedElement);
+              
+              targetItem = {
+                id: decision.rubric_item_id,
+                element: nestedElement,
+                itemType: 'NESTED_CHECKBOX'
+              };
+              console.log(`✅ Found and cached nested checkbox element for ${decision.rubric_item_id}`);
+            }
           }
         }
       }
@@ -1324,7 +1369,19 @@ class ChromeGradingService {
   }
 
   /**
+   * Clear all cached data (useful when navigating to a new submission)
+   */
+  private clearCache(): void {
+    console.log('🧹 Clearing cached rubric data...');
+    this.cachedNestedElements.clear();
+    this.cachedNestedData.clear();
+    this.cachedRadioOptions.clear();
+    this.cachedDecisions.clear();
+  }
+
+  /**
    * Set up listener to detect when groups are expanded/collapsed
+   * Note: With caching, this is mainly for edge cases where cache misses occur
    */
   private setupToggleListener(): void {
     const doc = getGradingDoc();
@@ -1333,7 +1390,7 @@ class ChromeGradingService {
     if ((window as any)._supergraderToggleListenerSet) return;
     (window as any)._supergraderToggleListenerSet = true;
     
-    console.log('🎯 Setting up toggle listener for group expansions...');
+    console.log('🎯 Setting up optimized toggle listener...');
     
     // Listen for clicks on group toggle buttons
     doc.addEventListener('click', (e: Event) => {
@@ -1341,14 +1398,18 @@ class ChromeGradingService {
       
       // Check if it's a group toggle button
       if (target && (target.classList.contains('rubricItemGroup--key') || target.closest('.rubricItemGroup--key'))) {
-        console.log('🔄 Group toggle detected, will re-display nested suggestions...');
+        console.log('🔄 Group toggle detected...');
         
-        // Give Gradescope time to expand/collapse the DOM, then re-display suggestions
-        setTimeout(() => {
-          this.reDisplayNestedSuggestions().catch(error => {
-            console.error('❌ Error re-displaying nested suggestions:', error);
-          });
-        }, 300); // Reduced delay for faster response
+        // Only re-display if we have cached decisions that need to be shown
+        if (this.cachedDecisions.size > 0) {
+          setTimeout(() => {
+            this.reDisplayNestedSuggestions().catch(error => {
+              console.error('❌ Error re-displaying nested suggestions:', error);
+            });
+          }, 300);
+        } else {
+          console.log('📋 No cached decisions to re-display');
+        }
       }
     }, true);
   }
