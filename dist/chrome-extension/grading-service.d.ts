@@ -69,6 +69,7 @@ declare class ChromeGradingService {
     private backendUrl;
     private api;
     private feedbackUI;
+    private cachedDecisions;
     constructor();
     /**
      * Extract assignment context from the current page
@@ -99,6 +100,10 @@ declare class ChromeGradingService {
      * Debug helper: Log the extracted text for a rubric item
      */
     private logTextExtractionDebug;
+    /**
+     * Find a specific nested checkbox element within a group by its child ID
+     */
+    private findNestedCheckboxElement;
     /**
      * Extract nested checkboxes from a group (like Program Design)
      */
@@ -136,5 +141,17 @@ declare class ChromeGradingService {
      * Get extension settings
      */
     private getSettings;
+    /**
+     * Re-display suggestions for nested checkboxes in currently expanded groups
+     */
+    private reDisplayNestedSuggestions;
+    /**
+     * Display a single suggestion without caching (used for re-display)
+     */
+    private displaySingleSuggestion;
+    /**
+     * Set up listener to detect when groups are expanded/collapsed
+     */
+    private setupToggleListener;
 }
 //# sourceMappingURL=grading-service.d.ts.map

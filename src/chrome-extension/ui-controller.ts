@@ -63,6 +63,8 @@ class UIController {
   private aiPanel: HTMLElement | null = null;
   private injectionPoint: Element | null = null;
   private state: EnhancedState | null = null;
+  private currentUrl: string = '';
+  private urlChangeObserver: MutationObserver | null = null;
 
   /**
    * Initialize the UI components with enhanced state and injection point
@@ -90,6 +92,9 @@ class UIController {
       this.isInitialized = true;
       console.log('UIController: Enhanced UI initialized successfully');
       
+      // Set up URL change monitoring
+      this.setupUrlChangeDetection();
+      
       // Automatically start grading instead of showing the popup
       console.log('UIController: Starting automatic grading...');
       setTimeout(() => {
@@ -101,6 +106,99 @@ class UIController {
     } catch (error) {
       console.error('UIController: Failed to initialize enhanced UI', error);
       this.handleInitializationError(error as Error);
+    }
+  }
+
+  /**
+   * Set up URL change detection to handle section navigation
+   */
+  private setupUrlChangeDetection(): void {
+    console.log('UIController: Setting up URL change detection...');
+    
+    // Store current URL
+    this.currentUrl = window.location.href;
+    console.log('UIController: Initial URL:', this.currentUrl);
+    
+    // Method 1: Listen for popstate events (back/forward navigation)
+    window.addEventListener('popstate', () => {
+      this.handleUrlChange();
+    });
+    
+    // Method 2: Monitor URL changes via MutationObserver on document
+    this.urlChangeObserver = new MutationObserver(() => {
+      if (window.location.href !== this.currentUrl) {
+        this.handleUrlChange();
+      }
+    });
+    
+    this.urlChangeObserver.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+    
+    // Method 3: Periodic URL check as fallback
+    setInterval(() => {
+      if (window.location.href !== this.currentUrl) {
+        this.handleUrlChange();
+      }
+    }, 1000);
+    
+    console.log('UIController: URL change detection set up successfully');
+  }
+
+  /**
+   * Handle URL changes - clear previous suggestions and re-grade
+   */
+  private handleUrlChange(): void {
+    const newUrl = window.location.href;
+    console.log('UIController: URL changed from', this.currentUrl, 'to', newUrl);
+    
+    // Update stored URL
+    this.currentUrl = newUrl;
+    
+    // Clear any existing feedback suggestions
+    this.clearPreviousSuggestions();
+    
+    // Wait a bit for the new content to load, then re-grade
+    setTimeout(() => {
+      console.log('UIController: Re-starting grading for new section...');
+      this.startEnhancedGrading().catch(error => {
+        console.error('UIController: Re-grading failed after URL change:', error);
+      });
+    }, 1500); // Slightly longer delay for content to load
+  }
+
+  /**
+   * Clear all previous grading suggestions from the DOM
+   */
+  private clearPreviousSuggestions(): void {
+    console.log('UIController: Clearing previous suggestions...');
+    
+    try {
+      // Use the global instance if available
+      const gradingServiceInstance = (window as any).chromeGradingServiceInstance;
+      if (gradingServiceInstance && gradingServiceInstance.feedbackUI) {
+        console.log('UIController: Clearing via global instance feedbackUI.clearAllSuggestions()');
+        gradingServiceInstance.feedbackUI.clearAllSuggestions();
+      }
+      
+      // Fallback: manually remove all feedback boxes
+      const feedbackBoxes = document.querySelectorAll('.supergrader-feedback-box');
+      console.log(`UIController: Found ${feedbackBoxes.length} feedback boxes to remove`);
+      feedbackBoxes.forEach(box => box.remove());
+      
+    } catch (error) {
+      console.error('UIController: Error clearing previous suggestions:', error);
+    }
+  }
+
+  /**
+   * Cleanup URL change detection
+   */
+  private cleanupUrlDetection(): void {
+    if (this.urlChangeObserver) {
+      this.urlChangeObserver.disconnect();
+      this.urlChangeObserver = null;
     }
   }
 
@@ -293,6 +391,9 @@ class UIController {
       }
 
       const gradingService = new ChromeGradingService();
+      
+      // Store global instance for cleanup access
+      (window as any).chromeGradingServiceInstance = gradingService;
 
       console.log('UIController: Starting automatic grading...');
 

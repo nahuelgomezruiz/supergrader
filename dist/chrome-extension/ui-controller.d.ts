@@ -51,10 +51,28 @@ declare class UIController {
     private aiPanel;
     private injectionPoint;
     private state;
+    private currentUrl;
+    private urlChangeObserver;
     /**
      * Initialize the UI components with enhanced state and injection point
      */
     initialize(enhancedState: EnhancedState): void;
+    /**
+     * Set up URL change detection to handle section navigation
+     */
+    private setupUrlChangeDetection;
+    /**
+     * Handle URL changes - clear previous suggestions and re-grade
+     */
+    private handleUrlChange;
+    /**
+     * Clear all previous grading suggestions from the DOM
+     */
+    private clearPreviousSuggestions;
+    /**
+     * Cleanup URL change detection
+     */
+    private cleanupUrlDetection;
     /**
      * Find fallback injection point if provided one fails
      */

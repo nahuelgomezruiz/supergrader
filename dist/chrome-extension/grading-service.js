@@ -24,25 +24,29 @@ class SimpleFeedbackUI {
             console.error('SimpleFeedbackUI: Could not find .rubricEditor container');
             return;
         }
-        // Find the specific rubric entry container for this item
-        // It could be a .rubricEntry or within a .rubricEntryGroupBundle
-        let insertTarget = cfg.element.closest('.rubricEntry');
-        if (!insertTarget) {
-            // Try finding the parent group bundle
-            insertTarget = cfg.element.closest('.rubricEntryGroupBundle');
+        // Determine insertion strategy based on item type
+        let insertTarget;
+        // Check if this is a nested checkbox (ID format: "parentId-childId")
+        if (cfg.rubricItemId.includes('-')) {
+            // For nested checkboxes, insert directly after the specific checkbox element
+            insertTarget = cfg.element.closest('.rubricEntryDragContainer') || cfg.element;
+            console.log(`📍 Inserting nested checkbox suggestion for ${cfg.rubricItemId} after:`, insertTarget.className);
         }
-        if (!insertTarget) {
-            console.error('SimpleFeedbackUI: Could not find insertion target for item', cfg.rubricItemId);
-            return;
+        else {
+            // For top-level items, use the existing logic
+            let rubricEntry = cfg.element.closest('.rubricEntry');
+            if (!rubricEntry) {
+                rubricEntry = cfg.element.closest('.rubricEntryGroupBundle');
+            }
+            if (!rubricEntry) {
+                console.error('SimpleFeedbackUI: Could not find insertion target for item', cfg.rubricItemId);
+                return;
+            }
+            insertTarget = rubricEntry.closest('.rubricEntryGroupBundle') || rubricEntry.closest('.rubricEntryDragContainer') || rubricEntry;
+            console.log(`📍 Inserting top-level suggestion for ${cfg.rubricItemId} after:`, insertTarget.className);
         }
-        // For group bundles, we want to insert after the entire bundle
-        const targetContainer = insertTarget.closest('.rubricEntryGroupBundle') || insertTarget.closest('.rubricEntryDragContainer');
-        if (!targetContainer) {
-            console.error('SimpleFeedbackUI: Could not find container for item', cfg.rubricItemId);
-            return;
-        }
-        // Insert the box right after the container
-        targetContainer.insertAdjacentElement('afterend', box);
+        // Insert the box right after the target
+        insertTarget.insertAdjacentElement('afterend', box);
         // Style the box to match the rubric editor width and spacing
         box.style.margin = '8px 0';
         box.style.width = 'calc(100% - 16px)';
@@ -171,6 +175,7 @@ function waitDelay(ms) {
 // Main grading service class
 class ChromeGradingService {
     constructor() {
+        this.cachedDecisions = new Map();
         this.backendUrl = 'http://localhost:8000';
         this.api = window.GradescopeAPI;
         this.feedbackUI = new SimpleFeedbackUI();
@@ -178,6 +183,8 @@ class ChromeGradingService {
         this.feedbackUI.onFeedback(async (feedback) => {
             await this.submitFeedback(feedback);
         });
+        // Set up listener to re-display suggestions when groups are expanded
+        this.setupToggleListener();
     }
     /**
      * Extract assignment context from the current page
@@ -374,13 +381,52 @@ class ChromeGradingService {
         });
     }
     /**
+     * Find a specific nested checkbox element within a group by its child ID
+     */
+    async findNestedCheckboxElement(groupElement, childId) {
+        // Expand the group if needed - be specific to avoid clicking settings button
+        const expandBtn = groupElement.querySelector('.rubricItemGroup--key[aria-expanded="false"]');
+        let wasExpanded = true;
+        if (expandBtn) {
+            console.log(`🔓 Expanding group to find ${childId}...`);
+            expandBtn.click();
+            await waitDelay(350);
+            wasExpanded = false;
+        }
+        // Find the container with nested items
+        let container = groupElement.parentElement?.querySelector('.rubricItemGroup--rubricItems') ||
+            groupElement.querySelector('.rubricItemGroup--rubricItems');
+        if (!container) {
+            const expandBtn = groupElement.querySelector('button[aria-controls]');
+            const controlsId = expandBtn?.getAttribute('aria-controls');
+            if (controlsId) {
+                container = getGradingDoc().getElementById(controlsId);
+            }
+        }
+        let foundElement = null;
+        if (container) {
+            const nestedElements = Array.from(container.querySelectorAll('.rubricItem'));
+            for (const elem of nestedElements) {
+                const keyEl = elem.querySelector('.rubricItem--key');
+                if (keyEl && keyEl.textContent?.trim() === childId) {
+                    foundElement = elem;
+                    break;
+                }
+            }
+        }
+        // NOTE: We intentionally keep the group expanded so the suggestion box is visible.
+        // If necessary, the grader can manually collapse it later.
+        return foundElement;
+    }
+    /**
      * Extract nested checkboxes from a group (like Program Design)
      */
     async extractNestedCheckboxes(groupElement, parentId, parentDescription) {
         const items = [];
-        // Expand the group if needed
-        const expandBtn = groupElement.querySelector('button[aria-expanded="false"]');
+        // Expand the group if needed - be specific to avoid clicking settings button
+        const expandBtn = groupElement.querySelector('.rubricItemGroup--key[aria-expanded="false"]');
         if (expandBtn) {
+            console.log(`🔓 Expanding group ${parentId} for extraction...`);
             expandBtn.click();
             await waitDelay(350);
         }
@@ -421,9 +467,10 @@ class ChromeGradingService {
                 });
             }
         });
-        // Collapse the group back
-        const collapseBtn = groupElement.querySelector('button[aria-expanded="true"]');
+        // Collapse the group back - be specific to avoid clicking settings button
+        const collapseBtn = groupElement.querySelector('.rubricItemGroup--key[aria-expanded="true"]');
         if (collapseBtn) {
+            console.log(`🔒 Collapsing group after extraction...`);
             collapseBtn.click();
             await waitDelay(150);
         }
@@ -434,9 +481,10 @@ class ChromeGradingService {
      */
     async extractRadioOptions(groupElement) {
         const options = {};
-        // Expand the accordion if needed
-        const expandBtn = groupElement.querySelector('button[aria-expanded="false"]');
+        // Expand the accordion if needed - be specific to avoid clicking settings button
+        const expandBtn = groupElement.querySelector('.rubricItemGroup--key[aria-expanded="false"]');
         if (expandBtn) {
+            console.log(`🔓 Expanding radio group for options extraction...`);
             expandBtn.click();
             await waitDelay(350);
         }
@@ -502,9 +550,10 @@ class ChromeGradingService {
             options[option.letter] = option.description + creditLabel;
         });
         console.log(`📊 Radio options with credit labels:`, options);
-        // Collapse the accordion back
-        const collapseBtn = groupElement.querySelector('button[aria-expanded="true"]');
+        // Collapse the accordion back - be specific to avoid clicking settings button
+        const collapseBtn = groupElement.querySelector('.rubricItemGroup--key[aria-expanded="true"]');
         if (collapseBtn) {
+            console.log(`🔒 Collapsing radio group after extraction...`);
             collapseBtn.click();
             await waitDelay(150);
         }
@@ -813,6 +862,8 @@ class ChromeGradingService {
      * Display grading suggestion in the UI
      */
     async displayGradingSuggestion(decision) {
+        // Cache decision so we can re-display it when groups are expanded
+        this.cachedDecisions.set(decision.rubric_item_id, decision);
         try {
             // Get the current rubric structure
             const rubricResult = await this.extractRubricFromDOM();
@@ -820,7 +871,24 @@ class ChromeGradingService {
                 console.error('No structured rubric found for displaying suggestion');
                 return;
             }
-            const targetItem = rubricResult.items.find((item) => item.id === decision.rubric_item_id);
+            let targetItem = rubricResult.items.find((item) => item.id === decision.rubric_item_id);
+            // If not found directly, check if it's a nested checkbox (format: "parentId-childId")
+            if (!targetItem && decision.rubric_item_id.includes('-')) {
+                const [parentId, childId] = decision.rubric_item_id.split('-');
+                const parentItem = rubricResult.items.find((item) => item.id === parentId);
+                if (parentItem && parentItem.itemType === 'CHECKBOX_GROUP') {
+                    console.log(`🔍 Looking for nested checkbox ${childId} in parent group ${parentId}`);
+                    const nestedElement = await this.findNestedCheckboxElement(parentItem.element, childId);
+                    if (nestedElement) {
+                        targetItem = {
+                            id: decision.rubric_item_id,
+                            element: nestedElement,
+                            itemType: 'NESTED_CHECKBOX'
+                        };
+                        console.log(`✅ Found nested checkbox element for ${decision.rubric_item_id}`);
+                    }
+                }
+            }
             if (!targetItem || !targetItem.element) {
                 console.error(`Rubric item ${decision.rubric_item_id} not found for displaying suggestion`);
                 return;
@@ -916,9 +984,123 @@ class ChromeGradingService {
             });
         });
     }
+    /**
+     * Re-display suggestions for nested checkboxes in currently expanded groups
+     */
+    async reDisplayNestedSuggestions() {
+        console.log('🔄 Re-displaying nested checkbox suggestions...');
+        // Find all currently expanded groups
+        const doc = getGradingDoc();
+        const expandedGroups = Array.from(doc.querySelectorAll('.rubricItemGroup[aria-expanded="true"], .rubricItemGroup-is-expanded'));
+        for (const group of expandedGroups) {
+            const keyBtn = group.querySelector('.rubricItemGroup--key');
+            if (!keyBtn)
+                continue;
+            const parentId = keyBtn.textContent?.trim();
+            if (!parentId)
+                continue;
+            // Find all cached decisions for nested items in this group
+            for (const [itemId, decision] of this.cachedDecisions.entries()) {
+                if (itemId.startsWith(`${parentId}-`)) {
+                    console.log(`🔄 Re-displaying suggestion for ${itemId}`);
+                    try {
+                        // Re-display this nested checkbox suggestion
+                        await this.displaySingleSuggestion(decision);
+                    }
+                    catch (error) {
+                        console.warn(`⚠️ Failed to re-display suggestion for ${itemId}:`, error);
+                    }
+                }
+            }
+        }
+    }
+    /**
+     * Display a single suggestion without caching (used for re-display)
+     */
+    async displaySingleSuggestion(decision) {
+        try {
+            // Get the current rubric structure
+            const rubricResult = await this.extractRubricFromDOM();
+            if (!rubricResult || rubricResult.type !== 'structured') {
+                console.error('No structured rubric found for displaying suggestion');
+                return;
+            }
+            let targetItem = rubricResult.items.find((item) => item.id === decision.rubric_item_id);
+            // If not found directly, check if it's a nested checkbox (format: "parentId-childId")
+            if (!targetItem && decision.rubric_item_id.includes('-')) {
+                const [parentId, childId] = decision.rubric_item_id.split('-');
+                const parentItem = rubricResult.items.find((item) => item.id === parentId);
+                if (parentItem && parentItem.itemType === 'CHECKBOX_GROUP') {
+                    console.log(`🔍 Looking for nested checkbox ${childId} in parent group ${parentId}`);
+                    const nestedElement = await this.findNestedCheckboxElement(parentItem.element, childId);
+                    if (nestedElement) {
+                        targetItem = {
+                            id: decision.rubric_item_id,
+                            element: nestedElement,
+                            itemType: 'NESTED_CHECKBOX'
+                        };
+                        console.log(`✅ Found nested checkbox element for ${decision.rubric_item_id}`);
+                    }
+                }
+            }
+            if (!targetItem || !targetItem.element) {
+                console.error(`Rubric item ${decision.rubric_item_id} not found for displaying suggestion`);
+                return;
+            }
+            // Determine the decision format
+            let formattedDecision;
+            if (decision.type === 'CHECKBOX') {
+                formattedDecision = decision.verdict.decision || 'uncheck';
+            }
+            else if (decision.type === 'RADIO' && decision.verdict.selected_option) {
+                formattedDecision = decision.verdict.selected_option;
+            }
+            else {
+                formattedDecision = 'Unknown';
+            }
+            // Display the suggestion
+            this.feedbackUI.displaySuggestion({
+                rubricItemId: decision.rubric_item_id,
+                comment: decision.verdict.comment,
+                decision: formattedDecision,
+                confidence: decision.confidence,
+                element: targetItem.element
+            });
+        }
+        catch (error) {
+            console.error('Error displaying single suggestion:', error);
+        }
+    }
+    /**
+     * Set up listener to detect when groups are expanded/collapsed
+     */
+    setupToggleListener() {
+        const doc = getGradingDoc();
+        // Avoid multiple listeners if multiple instances are created
+        if (window._supergraderToggleListenerSet)
+            return;
+        window._supergraderToggleListenerSet = true;
+        console.log('🎯 Setting up toggle listener for group expansions...');
+        // Listen for clicks on group toggle buttons
+        doc.addEventListener('click', (e) => {
+            const target = e.target;
+            // Check if it's a group toggle button
+            if (target && (target.classList.contains('rubricItemGroup--key') || target.closest('.rubricItemGroup--key'))) {
+                console.log('🔄 Group toggle detected, will re-display nested suggestions...');
+                // Give Gradescope time to expand/collapse the DOM, then re-display suggestions
+                setTimeout(() => {
+                    this.reDisplayNestedSuggestions().catch(error => {
+                        console.error('❌ Error re-displaying nested suggestions:', error);
+                    });
+                }, 800); // Increased delay to ensure DOM is fully updated
+            }
+        }, true);
+    }
 }
 // Make the service available globally
 console.log('supergrader: Making ChromeGradingService available globally');
 window.ChromeGradingService = ChromeGradingService;
+// Also store a global instance for easy access to methods like clearAllSuggestions
+window.chromeGradingServiceInstance = null;
 console.log('supergrader: ChromeGradingService is now available at window.ChromeGradingService');
 //# sourceMappingURL=grading-service.js.map
