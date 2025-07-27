@@ -70,7 +70,18 @@ declare class ChromeGradingService {
     private api;
     private feedbackUI;
     private cachedDecisions;
+    private cachedFiles;
     constructor();
+    /**
+     * Generate cache key for submission files based on course and base submission identifier
+     * For multi-question assignments, both question_id and submission_id increment together,
+     * so we normalize them to a base range to cache across all questions of the same student
+     */
+    private generateFileCacheKey;
+    /**
+     * Clear cached files (useful when navigating to different submissions)
+     */
+    clearFileCache(): void;
     /**
      * Extract assignment context from the current page
      */

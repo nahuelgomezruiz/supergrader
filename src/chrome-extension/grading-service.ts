@@ -262,6 +262,7 @@ class ChromeGradingService {
   private api: any;
   private feedbackUI: SimpleFeedbackUI;
   private cachedDecisions: Map<string, any> = new Map();
+  private cachedFiles: Map<string, any> = new Map(); // Cache for downloaded files
 
   constructor() {
     this.backendUrl = 'http://localhost:8000';
@@ -275,6 +276,31 @@ class ChromeGradingService {
     
     // Set up listener to re-display suggestions when groups are expanded
     this.setupToggleListener();
+  }
+
+  /**
+   * Generate cache key for submission files based on course and base submission identifier
+   * For multi-question assignments, both question_id and submission_id increment together,
+   * so we normalize them to a base range to cache across all questions of the same student
+   */
+  private generateFileCacheKey(context: { course_id: string; assignment_id: string; submission_id: string }): string {
+    // For multi-question assignments, normalize the submission_id to a base range
+    // Since consecutive questions have submission IDs that differ by ~1-4, we can group them
+    // by rounding down to the nearest multiple of 10 to create a stable cache key
+    const submissionIdInt = parseInt(context.submission_id);
+    const baseSubmissionId = Math.floor(submissionIdInt / 10) * 10;
+    
+    // Use course_id + normalized_submission_id as cache key
+    // This way, all questions for the same student submission use the same cache
+    return `${context.course_id}-${baseSubmissionId}`;
+  }
+
+  /**
+   * Clear cached files (useful when navigating to different submissions)
+   */
+  public clearFileCache(): void {
+    this.cachedFiles.clear();
+    console.log('🗑️ Cleared file cache');
   }
 
   /**
@@ -903,18 +929,30 @@ class ChromeGradingService {
 
     console.log(`📊 Found ${rubricResult.items.length} rubric items`);
 
-    // Download submission files
-    console.log('📥 Downloading submission files...');
+    // Check cache first, then download submission files if needed
+    const cacheKey = this.generateFileCacheKey(context);
+    console.log(`🔑 Generated cache key: ${cacheKey} (from submission_id: ${context.submission_id})`);
     let downloadResult: any;
-    try {
-      if (!api.downloadSubmissionFiles) {
-        throw new Error('GradescopeAPI download method not available');
+    
+    if (this.cachedFiles.has(cacheKey)) {
+      console.log('📋 Using cached submission files...');
+      downloadResult = this.cachedFiles.get(cacheKey);
+      console.log(`✅ Using ${Object.keys(downloadResult.files).length} cached files`);
+    } else {
+      console.log('📥 Downloading submission files...');
+      try {
+        if (!api.downloadSubmissionFiles) {
+          throw new Error('GradescopeAPI download method not available');
+        }
+        downloadResult = await api.downloadSubmissionFiles(context.submission_id);
+        
+        // Cache the downloaded files
+        this.cachedFiles.set(cacheKey, downloadResult);
+        console.log(`✅ Downloaded and cached ${Object.keys(downloadResult.files).length} files`);
+      } catch (error) {
+        console.error('❌ Error downloading files:', error);
+        throw new Error(`Failed to download submission files: ${(error as Error).message}`);
       }
-      downloadResult = await api.downloadSubmissionFiles(context.submission_id);
-      console.log(`✅ Downloaded ${Object.keys(downloadResult.files).length} files`);
-    } catch (error) {
-      console.error('❌ Error downloading files:', error);
-      throw new Error(`Failed to download submission files: ${(error as Error).message}`);
     }
 
     // Convert rubric to backend format

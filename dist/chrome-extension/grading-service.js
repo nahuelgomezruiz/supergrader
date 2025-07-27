@@ -176,6 +176,7 @@ function waitDelay(ms) {
 class ChromeGradingService {
     constructor() {
         this.cachedDecisions = new Map();
+        this.cachedFiles = new Map(); // Cache for downloaded files
         this.backendUrl = 'http://localhost:8000';
         this.api = window.GradescopeAPI;
         this.feedbackUI = new SimpleFeedbackUI();
@@ -185,6 +186,28 @@ class ChromeGradingService {
         });
         // Set up listener to re-display suggestions when groups are expanded
         this.setupToggleListener();
+    }
+    /**
+     * Generate cache key for submission files based on course and base submission identifier
+     * For multi-question assignments, both question_id and submission_id increment together,
+     * so we normalize them to a base range to cache across all questions of the same student
+     */
+    generateFileCacheKey(context) {
+        // For multi-question assignments, normalize the submission_id to a base range
+        // Since consecutive questions have submission IDs that differ by ~1-4, we can group them
+        // by rounding down to the nearest multiple of 10 to create a stable cache key
+        const submissionIdInt = parseInt(context.submission_id);
+        const baseSubmissionId = Math.floor(submissionIdInt / 10) * 10;
+        // Use course_id + normalized_submission_id as cache key
+        // This way, all questions for the same student submission use the same cache
+        return `${context.course_id}-${baseSubmissionId}`;
+    }
+    /**
+     * Clear cached files (useful when navigating to different submissions)
+     */
+    clearFileCache() {
+        this.cachedFiles.clear();
+        console.log('🗑️ Cleared file cache');
     }
     /**
      * Extract assignment context from the current page
@@ -724,19 +747,30 @@ class ChromeGradingService {
         console.log('🔍 Extracting rubric directly from DOM...');
         const rubricResult = await this.extractRubricFromDOM();
         console.log(`📊 Found ${rubricResult.items.length} rubric items`);
-        // Download submission files
-        console.log('📥 Downloading submission files...');
+        // Check cache first, then download submission files if needed
+        const cacheKey = this.generateFileCacheKey(context);
+        console.log(`🔑 Generated cache key: ${cacheKey} (from submission_id: ${context.submission_id})`);
         let downloadResult;
-        try {
-            if (!api.downloadSubmissionFiles) {
-                throw new Error('GradescopeAPI download method not available');
-            }
-            downloadResult = await api.downloadSubmissionFiles(context.submission_id);
-            console.log(`✅ Downloaded ${Object.keys(downloadResult.files).length} files`);
+        if (this.cachedFiles.has(cacheKey)) {
+            console.log('📋 Using cached submission files...');
+            downloadResult = this.cachedFiles.get(cacheKey);
+            console.log(`✅ Using ${Object.keys(downloadResult.files).length} cached files`);
         }
-        catch (error) {
-            console.error('❌ Error downloading files:', error);
-            throw new Error(`Failed to download submission files: ${error.message}`);
+        else {
+            console.log('📥 Downloading submission files...');
+            try {
+                if (!api.downloadSubmissionFiles) {
+                    throw new Error('GradescopeAPI download method not available');
+                }
+                downloadResult = await api.downloadSubmissionFiles(context.submission_id);
+                // Cache the downloaded files
+                this.cachedFiles.set(cacheKey, downloadResult);
+                console.log(`✅ Downloaded and cached ${Object.keys(downloadResult.files).length} files`);
+            }
+            catch (error) {
+                console.error('❌ Error downloading files:', error);
+                throw new Error(`Failed to download submission files: ${error.message}`);
+            }
         }
         // Convert rubric to backend format
         console.log('🔄 Converting rubric to backend format...');

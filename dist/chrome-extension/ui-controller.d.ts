@@ -92,6 +92,10 @@ declare class UIController {
      */
     private setupEnhancedEventListeners;
     /**
+     * Wait for the rubric DOM elements to be ready
+     */
+    private waitForRubricDOM;
+    /**
      * Enhanced grading process with backend integration
      */
     private startEnhancedGrading;

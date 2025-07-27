@@ -86,17 +86,47 @@ class UIController {
     handleUrlChange() {
         const newUrl = window.location.href;
         console.log('UIController: URL changed from', this.currentUrl, 'to', newUrl);
+        // Check if we're navigating to a different submission (need to clear file cache)
+        const oldSubmissionMatch = this.currentUrl.match(/\/courses\/(\d+)\/(assignments|questions)\/(\d+)\/submissions\/(\d+)\/grade/);
+        const newSubmissionMatch = newUrl.match(/\/courses\/(\d+)\/(assignments|questions)\/(\d+)\/submissions\/(\d+)\/grade/);
+        // Calculate differences in question and submission IDs (if both URLs match the pattern)
+        let questionIdDiff = 0;
+        let submissionIdDiff = 0;
+        if (oldSubmissionMatch && newSubmissionMatch) {
+            questionIdDiff = Math.abs(parseInt(oldSubmissionMatch[3]) - parseInt(newSubmissionMatch[3]));
+            submissionIdDiff = Math.abs(parseInt(oldSubmissionMatch[4]) - parseInt(newSubmissionMatch[4]));
+        }
+        const isDifferentSubmission = !oldSubmissionMatch || !newSubmissionMatch ||
+            oldSubmissionMatch[1] !== newSubmissionMatch[1] || // different course
+            questionIdDiff > 4 || // question IDs too far apart
+            submissionIdDiff > 4; // submission IDs too far apart
+        // Note: Both question and submission IDs increment together for same assignment
+        if (isDifferentSubmission) {
+            console.log('🔄 Different submission detected - will clear file cache');
+            console.log(`   Question ID diff: ${questionIdDiff}, Submission ID diff: ${submissionIdDiff}`);
+            // Clear file cache when navigating to different submission
+            const gradingServiceInstance = window.chromeGradingServiceInstance;
+            if (gradingServiceInstance && gradingServiceInstance.clearFileCache) {
+                gradingServiceInstance.clearFileCache();
+            }
+        }
+        else {
+            console.log('📄 Same submission, different question section - using cached files');
+            console.log(`   Question ID diff: ${questionIdDiff}, Submission ID diff: ${submissionIdDiff}`);
+        }
         // Update stored URL
         this.currentUrl = newUrl;
         // Clear any existing feedback suggestions
         this.clearPreviousSuggestions();
-        // Wait a bit for the new content to load, then re-grade
-        setTimeout(() => {
+        // Wait for the new DOM content to be ready, then re-grade
+        setTimeout(async () => {
             console.log('UIController: Re-starting grading for new section...');
+            // Wait for DOM to be ready with rubric elements
+            await this.waitForRubricDOM();
             this.startEnhancedGrading().catch(error => {
                 console.error('UIController: Re-grading failed after URL change:', error);
             });
-        }, 1500); // Slightly longer delay for content to load
+        }, 1500); // Initial delay for page transition
     }
     /**
      * Clear all previous grading suggestions from the DOM
@@ -293,6 +323,26 @@ class UIController {
         console.log('UIController: Event listeners disabled - using automatic grading mode');
     }
     /**
+     * Wait for the rubric DOM elements to be ready
+     */
+    async waitForRubricDOM() {
+        console.log('UIController: Waiting for rubric DOM to be ready...');
+        const maxRetries = 20; // 10 seconds max
+        const delay = 500; // 500ms between checks
+        for (let i = 0; i < maxRetries; i++) {
+            // Check if rubric elements are present
+            const rubricItems = document.querySelectorAll('.rubricItem, .rubricItemGroup');
+            const gradingPanel = document.querySelector('[data-react-class*="Grade"]');
+            if (rubricItems.length > 0 && gradingPanel) {
+                console.log(`UIController: Rubric DOM ready (${rubricItems.length} items found)`);
+                return;
+            }
+            console.log(`UIController: Waiting for rubric DOM... (attempt ${i + 1}/${maxRetries})`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+        console.warn('UIController: Rubric DOM not ready after maximum wait time');
+    }
+    /**
      * Enhanced grading process with backend integration
      */
     async startEnhancedGrading() {
@@ -303,9 +353,16 @@ class UIController {
             if (!ChromeGradingService) {
                 throw new Error('ChromeGradingService failed to load after retries');
             }
-            const gradingService = new ChromeGradingService();
-            // Store global instance for cleanup access
-            window.chromeGradingServiceInstance = gradingService;
+            // Reuse existing instance to preserve cache, or create new one
+            let gradingService = window.chromeGradingServiceInstance;
+            if (!gradingService) {
+                console.log('UIController: Creating new ChromeGradingService instance');
+                gradingService = new ChromeGradingService();
+                window.chromeGradingServiceInstance = gradingService;
+            }
+            else {
+                console.log('UIController: Reusing existing ChromeGradingService instance (preserves cache)');
+            }
             console.log('UIController: Starting automatic grading...');
             // Start grading with progress tracking
             await gradingService.gradeSubmission((event) => {
