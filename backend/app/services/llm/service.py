@@ -123,6 +123,21 @@ class LLMService:
                     rubric_description, rubric_options, source_files, language, section_context, caveats
                 )
             
+            # Log full prompt when caveats are included
+            if caveats and len(caveats) > 0:
+                import re
+                # Remove the student submission code to avoid huge output
+                sanitized = re.sub(
+                    r"Student submission:[\s\S]*?INSTRUCTIONS:",
+                    "Student submission:\n<omitted for log>\n\nINSTRUCTIONS:",
+                    prompt,
+                    flags=re.MULTILINE
+                )
+
+                print("\n======================= LLM PROMPT (with caveats, sans code) =======================")
+                print(sanitized)
+                print("==========================================================================\n")
+            
             # Call the LLM
             response = await provider.call_llm(prompt)
             

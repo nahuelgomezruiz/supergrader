@@ -9,6 +9,6 @@
       "original_decision": "check - The Data Structures section clearly describes the doubly LinkedList algorithm, explaining that it is 'a list of pointers that are connected to each other and can move to its next Node or previous Node.' The description includes advantages (quick front insertion due to front pointer) and disadvantages (slow index access requiring traversal), demonstrating understanding of the algorithm's characteristics."
     },
     "created_at": "2025-07-27T19:54:16.527450",
-    "usage_count": 0
+    "usage_count": 279
   }
 }

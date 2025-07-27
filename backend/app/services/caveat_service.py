@@ -31,10 +31,11 @@ class CaveatService:
         self.caveats_file = os.path.join(self.storage_dir, 'caveats.json')
         self.index_file = os.path.join(self.storage_dir, 'faiss_index.pkl')
         self.embeddings_file = os.path.join(self.storage_dir, 'embeddings.pkl')
+        self.index_mapping_file = os.path.join(self.storage_dir, 'index_mapping.pkl')
         
         # Load existing data
         self.caveats: Dict[str, Dict[str, Any]] = self._load_caveats()
-        self.index, self.embeddings = self._load_or_create_index()
+        self.index, self.embeddings, self.index_to_caveat_id = self._load_or_create_index()
         
         logger.info(f"CaveatService initialized with {len(self.caveats)} caveats")
     
@@ -58,13 +59,17 @@ class CaveatService:
     
     def _load_or_create_index(self):
         """Load or create FAISS index for semantic search."""
-        if os.path.exists(self.index_file) and os.path.exists(self.embeddings_file):
+        if (os.path.exists(self.index_file) and 
+            os.path.exists(self.embeddings_file) and 
+            os.path.exists(self.index_mapping_file)):
             try:
                 with open(self.index_file, 'rb') as f:
                     index = pickle.load(f)
                 with open(self.embeddings_file, 'rb') as f:
                     embeddings = pickle.load(f)
-                return index, embeddings
+                with open(self.index_mapping_file, 'rb') as f:
+                    index_to_caveat_id = pickle.load(f)
+                return index, embeddings, index_to_caveat_id
             except Exception as e:
                 logger.error(f"Error loading index: {e}")
         
@@ -72,7 +77,18 @@ class CaveatService:
         dimension = 384  # all-MiniLM-L6-v2 embedding dimension
         index = faiss.IndexFlatL2(dimension)
         embeddings = {}
-        return index, embeddings
+        index_to_caveat_id = {}
+        
+        # Rebuild from existing caveats if any
+        if self.caveats:
+            logger.info("Rebuilding index from existing caveats...")
+            for i, (caveat_id, caveat) in enumerate(self.caveats.items()):
+                embedding = self.model.encode(caveat['rubric_question'])
+                index.add(np.array([embedding]))
+                embeddings[caveat_id] = embedding
+                index_to_caveat_id[i] = caveat_id
+        
+        return index, embeddings, index_to_caveat_id
     
     def _save_index(self):
         """Save FAISS index to file."""
@@ -81,6 +97,8 @@ class CaveatService:
                 pickle.dump(self.index, f)
             with open(self.embeddings_file, 'wb') as f:
                 pickle.dump(self.embeddings, f)
+            with open(self.index_mapping_file, 'wb') as f:
+                pickle.dump(self.index_to_caveat_id, f)
         except Exception as e:
             logger.error(f"Error saving index: {e}")
     
@@ -109,8 +127,10 @@ class CaveatService:
         embedding = self.model.encode(rubric_question)
         
         # Add to FAISS index
+        current_index = self.index.ntotal
         self.index.add(np.array([embedding]))
         self.embeddings[caveat_id] = embedding
+        self.index_to_caveat_id[current_index] = caveat_id
         
         # Store caveat
         self.caveats[caveat_id] = caveat
@@ -126,7 +146,7 @@ class CaveatService:
         self,
         rubric_question: str,
         top_k: int = 5,
-        similarity_threshold: float = 0.7
+        similarity_threshold: float = 0.5
     ) -> List[Dict[str, Any]]:
         """Search for relevant caveats based on rubric question similarity."""
         if not self.caveats:
@@ -141,28 +161,32 @@ class CaveatService:
             min(top_k, len(self.caveats))
         )
         
-        # Get caveat IDs from embeddings
-        caveat_ids = list(self.embeddings.keys())
-        
         # Collect relevant caveats
         relevant_caveats = []
         for i, (distance, idx) in enumerate(zip(distances[0], indices[0])):
-            if idx < len(caveat_ids):
-                # Convert L2 distance to similarity score (0-1)
-                similarity = 1 / (1 + distance)
+            if idx in self.index_to_caveat_id:
+                caveat_id = self.index_to_caveat_id[idx]
                 
-                if similarity >= similarity_threshold:
-                    caveat_id = caveat_ids[idx]
+                # Use cosine similarity instead of L2 distance conversion
+                stored_embedding = self.embeddings[caveat_id]
+                cosine_similarity = float(np.dot(query_embedding, stored_embedding) / 
+                                        (np.linalg.norm(query_embedding) * np.linalg.norm(stored_embedding)))
+                
+                logger.info(f"Caveat {caveat_id}: L2={distance:.4f}, Cosine={cosine_similarity:.4f}")
+                
+                if cosine_similarity >= similarity_threshold:
                     caveat = self.caveats[caveat_id].copy()
-                    caveat['similarity_score'] = float(similarity)
+                    caveat['similarity_score'] = cosine_similarity
                     relevant_caveats.append(caveat)
                     
                     # Increment usage count
                     self.caveats[caveat_id]['usage_count'] += 1
+                    logger.info(f"Using caveat {caveat_id}, new usage count: {self.caveats[caveat_id]['usage_count']}")
         
         # Save updated usage counts
         if relevant_caveats:
             self._save_caveats()
+            logger.info(f"Saved updated usage counts for {len(relevant_caveats)} caveats")
         
         logger.info(f"Found {len(relevant_caveats)} relevant caveats for: {rubric_question[:50]}...")
         return relevant_caveats
@@ -189,11 +213,13 @@ class CaveatService:
         dimension = 384
         self.index = faiss.IndexFlatL2(dimension)
         self.embeddings = {}
+        self.index_to_caveat_id = {}
         
-        for caveat_id, caveat in self.caveats.items():
+        for i, (caveat_id, caveat) in enumerate(self.caveats.items()):
             embedding = self.model.encode(caveat['rubric_question'])
             self.index.add(np.array([embedding]))
             self.embeddings[caveat_id] = embedding
+            self.index_to_caveat_id[i] = caveat_id
         
         self._save_index()
     

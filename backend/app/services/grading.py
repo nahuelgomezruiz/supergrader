@@ -176,8 +176,19 @@ class GradingService:
         relevant_caveats = await self.caveat_service.search_caveats(
             rubric_question=rubric_item.description,
             top_k=3,
-            similarity_threshold=0.7
+            similarity_threshold=0.5
         )
+        
+        # Log caveat retrieval for debugging
+        if relevant_caveats:
+            print(f"🎯 Found {len(relevant_caveats)} relevant caveats for '{rubric_item.description[:50]}...':")
+            for caveat in relevant_caveats:
+                print(f"   - Similarity: {caveat['similarity_score']:.3f}")
+                print(f"   - Caveat: {caveat['caveat_text'][:80]}...")
+        else:
+            print(f"📭 No relevant caveats found for '{rubric_item.description[:50]}...'")
+        
+        print(f"🔄 Passing {len(relevant_caveats)} caveats to LLM for evaluation")
         
         # Launch parallel LLM evaluations
         tasks = []
