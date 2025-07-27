@@ -1,13 +1,14 @@
 {
-  "ff73016f-5779-4402-92b0-e3b1735e2436": {
-    "id": "ff73016f-5779-4402-92b0-e3b1735e2436",
-    "rubric_question": "Test persistence question",
-    "caveat_text": "Test persistence caveat",
-    "original_feedback": "Test feedback",
+  "3b9c7949-85d2-4a2c-a930-8c1fe0e27c3b": {
+    "id": "3b9c7949-85d2-4a2c-a930-8c1fe0e27c3b",
+    "rubric_question": "Grading comment:There is a description of any kind of algorithm in the Data Structures section.",
+    "caveat_text": "When evaluating algorithm descriptions, ensure the student provides specific details about how the algorithm operates (such as traversal methods, insertion/deletion procedures, or step-by-step processes) rather than just high-level conceptual explanations or structural characteristics. A mere description of what a data structure \"is\" or its general properties does not constitute an algorithm description.",
+    "original_feedback": "That too vague to count as a description of an algorithm.",
     "metadata": {
-      "persistence_test": true
+      "rubric_item_id": "6",
+      "original_decision": "check - The Data Structures section clearly describes the doubly LinkedList algorithm, explaining that it is 'a list of pointers that are connected to each other and can move to its next Node or previous Node.' The description includes advantages (quick front insertion due to front pointer) and disadvantages (slow index access requiring traversal), demonstrating understanding of the algorithm's characteristics."
     },
-    "created_at": "2025-07-27T07:50:36.530543",
+    "created_at": "2025-07-27T19:54:16.527450",
     "usage_count": 0
   }
 }

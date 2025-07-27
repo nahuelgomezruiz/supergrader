@@ -26,6 +26,9 @@ declare class SimpleFeedbackUI {
     private formatDecision;
     private escape;
     private injectStyles;
+    showLoadingOverlay(message?: string, subtext?: string): void;
+    hideLoadingOverlay(): void;
+    updateLoadingOverlay(message: string, subtext?: string): void;
 }
 interface BackendRubricItem {
     id: string;
@@ -74,6 +77,8 @@ declare class ChromeGradingService {
     private cachedNestedElements;
     private cachedNestedData;
     private cachedRadioOptions;
+    private isProcessingSuggestions;
+    private suggestionProcessingTimer;
     constructor();
     /**
      * Generate cache key for submission files based on course and base submission identifier
@@ -167,6 +172,18 @@ declare class ChromeGradingService {
      * Clear all cached data (useful when navigating to a new submission)
      */
     private clearCache;
+    /**
+     * Start suggestion processing phase with loading overlay
+     */
+    private startSuggestionProcessing;
+    /**
+     * Finish suggestion processing phase
+     */
+    private finishSuggestionProcessing;
+    /**
+     * Refresh cached elements that may have become stale due to DOM changes
+     */
+    private refreshCachedElements;
     /**
      * Set up listener to detect when groups are expanded/collapsed
      * Note: With caching, this is mainly for edge cases where cache misses occur

@@ -24,7 +24,7 @@ export class Panel {
         // Create panel structure
         panel.innerHTML = `
       <div class="ai-panel-header">
-        🤖 supergrader
+         supergrader
         <div class="ai-panel-info">
           ${assignmentTypeLabel} ${config.assignmentId} | Submission ${config.submissionId}
         </div>

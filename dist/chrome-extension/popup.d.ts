@@ -1,25 +1,18 @@
 interface Settings {
-    autoApplyHighConfidence: boolean;
     confidenceThreshold: number;
-    enabledForAssignment: boolean;
+    autoApplyHighConfidence: boolean;
     backendUrl?: string;
+    enabledForAssignment: boolean;
 }
 interface PopupMessage {
-    action: 'updateStatus' | 'gradingProgress' | 'gradingComplete' | 'gradingError' | string;
+    action: 'updateStatus' | 'settingsChanged' | string;
     status?: string;
     type?: 'ready' | 'not-ready' | 'error';
     settings?: Settings;
-    progress?: number;
-    error?: string;
-    message?: string;
 }
 declare let statusDiv: HTMLElement | null;
-declare let autoApplyToggle: HTMLElement | null;
-declare let thresholdInput: HTMLInputElement | null;
 declare let enabledToggle: HTMLElement | null;
-declare let settingsBtn: HTMLButtonElement | null;
-declare let helpBtn: HTMLButtonElement | null;
-declare let gradeBtn: HTMLButtonElement | null;
+declare let toggleText: HTMLElement | null;
 /**
  * Initialize popup functionality
  */

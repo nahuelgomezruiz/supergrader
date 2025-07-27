@@ -1,14 +1,10 @@
 "use strict";
-// Popup script for supergrader
+// Simplified popup script for supergrader
 console.log('supergrader: Popup loaded');
 // DOM elements with proper types
 let statusDiv;
-let autoApplyToggle;
-let thresholdInput;
 let enabledToggle;
-let settingsBtn;
-let helpBtn;
-let gradeBtn;
+let toggleText;
 /**
  * Initialize popup when DOM is ready
  */
@@ -16,14 +12,10 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('Popup: DOM loaded, initializing...');
     // Get DOM elements with proper type checking
     statusDiv = document.getElementById('status');
-    autoApplyToggle = document.getElementById('autoApplyToggle');
-    thresholdInput = document.getElementById('thresholdInput');
     enabledToggle = document.getElementById('enabledToggle');
-    settingsBtn = document.getElementById('settingsBtn');
-    helpBtn = document.getElementById('helpBtn');
-    gradeBtn = document.getElementById('gradeBtn');
+    toggleText = document.getElementById('toggleText');
     // Validate required elements exist
-    if (!statusDiv || !autoApplyToggle || !thresholdInput || !enabledToggle) {
+    if (!statusDiv || !enabledToggle || !toggleText) {
         console.error('Popup: Required DOM elements not found');
         return;
     }
@@ -98,28 +90,21 @@ async function checkCurrentTab() {
  */
 async function loadSettings() {
     try {
-        const settingKeys = [
-            'autoApplyHighConfidence',
-            'confidenceThreshold',
-            'enabledForAssignment'
-        ];
-        const result = await chrome.storage.sync.get(settingKeys);
+        const result = await chrome.storage.sync.get(['enabledForAssignment']);
         console.log('Popup: Raw storage result', result);
-        // Update UI with loaded settings with proper type checking
-        if (autoApplyToggle && result.autoApplyHighConfidence === true) {
-            autoApplyToggle.classList.add('active');
+        // Update UI with loaded settings
+        const isEnabled = result.enabledForAssignment !== false; // Default to enabled
+        if (enabledToggle && toggleText) {
+            if (isEnabled) {
+                enabledToggle.classList.add('active');
+                toggleText.textContent = 'Enabled';
+            }
+            else {
+                enabledToggle.classList.remove('active');
+                toggleText.textContent = 'Disabled';
+            }
         }
-        if (thresholdInput && typeof result.confidenceThreshold === 'number') {
-            thresholdInput.value = result.confidenceThreshold.toString();
-        }
-        else if (thresholdInput) {
-            // Set default value if not found
-            thresholdInput.value = '0.8';
-        }
-        if (enabledToggle && result.enabledForAssignment !== false) {
-            enabledToggle.classList.add('active');
-        }
-        console.log('Popup: Settings loaded and UI updated', result);
+        console.log('Popup: Settings loaded and UI updated', { enabledForAssignment: isEnabled });
     }
     catch (error) {
         console.error('Popup: Error loading settings', error);
@@ -129,31 +114,24 @@ async function loadSettings() {
  * Save settings to storage
  */
 async function saveSettings() {
-    if (!autoApplyToggle || !thresholdInput || !enabledToggle) {
+    if (!enabledToggle || !toggleText) {
         console.error('Popup: Cannot save settings - UI elements not available');
         return;
     }
     try {
-        const settings = {
-            autoApplyHighConfidence: autoApplyToggle.classList.contains('active'),
-            confidenceThreshold: parseFloat(thresholdInput.value),
-            enabledForAssignment: enabledToggle.classList.contains('active')
-        };
-        // Validate settings
-        if (isNaN(settings.confidenceThreshold) || settings.confidenceThreshold < 0 || settings.confidenceThreshold > 1) {
-            console.warn('Popup: Invalid confidence threshold, setting to 0.8');
-            settings.confidenceThreshold = 0.8;
-            thresholdInput.value = '0.8';
-        }
-        await chrome.storage.sync.set(settings);
-        console.log('Popup: Settings saved', settings);
+        const isEnabled = enabledToggle.classList.contains('active');
+        // Only update the enabledForAssignment property, preserve others
+        await chrome.storage.sync.set({ enabledForAssignment: isEnabled });
+        console.log('Popup: Settings saved', { enabledForAssignment: isEnabled });
+        // Update toggle text
+        toggleText.textContent = isEnabled ? 'Enabled' : 'Disabled';
         // Notify content script of setting changes
         try {
             const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
             if (tab?.id) {
                 await chrome.tabs.sendMessage(tab.id, {
                     action: 'settingsUpdated',
-                    settings: settings
+                    settings: { enabledForAssignment: isEnabled }
                 });
                 console.log('Popup: Notified content script of settings update');
             }
@@ -171,114 +149,12 @@ async function saveSettings() {
  * Setup event listeners for UI interactions
  */
 function setupEventListeners() {
-    // Toggle switches with null checks
-    if (autoApplyToggle) {
-        autoApplyToggle.addEventListener('click', () => {
-            autoApplyToggle?.classList.toggle('active');
-            saveSettings().catch(error => {
-                console.error('Popup: Error saving settings from auto-apply toggle', error);
-            });
-        });
-    }
+    // Extension enable/disable toggle
     if (enabledToggle) {
         enabledToggle.addEventListener('click', () => {
             enabledToggle?.classList.toggle('active');
             saveSettings().catch(error => {
                 console.error('Popup: Error saving settings from enabled toggle', error);
-            });
-        });
-    }
-    // Threshold input with validation
-    if (thresholdInput) {
-        thresholdInput.addEventListener('change', () => {
-            if (!thresholdInput)
-                return;
-            let value = parseFloat(thresholdInput.value);
-            // Validate range
-            if (isNaN(value) || value < 0) {
-                value = 0;
-            }
-            if (value > 1) {
-                value = 1;
-            }
-            thresholdInput.value = value.toString();
-            saveSettings().catch(error => {
-                console.error('Popup: Error saving settings from threshold input', error);
-            });
-        });
-        // Real-time validation as user types
-        thresholdInput.addEventListener('input', () => {
-            if (!thresholdInput)
-                return;
-            const value = parseFloat(thresholdInput.value);
-            // Visual feedback for invalid values
-            if (isNaN(value) || value < 0 || value > 1) {
-                thresholdInput.style.borderColor = '#ff6b6b';
-                thresholdInput.title = 'Value must be between 0 and 1';
-            }
-            else {
-                thresholdInput.style.borderColor = '';
-                thresholdInput.title = '';
-            }
-        });
-    }
-    // Grade button
-    if (gradeBtn) {
-        gradeBtn.addEventListener('click', async () => {
-            console.log('Popup: Grade button clicked');
-            if (!gradeBtn || !statusDiv)
-                return;
-            // Check if we're on a grading page
-            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-            if (!tab?.id || !tab.url?.includes('/grade')) {
-                updateStatus('Must be on a Gradescope grading page', 'error');
-                return;
-            }
-            // Disable button and show progress
-            gradeBtn.disabled = true;
-            gradeBtn.textContent = '⏳ Grading in progress...';
-            updateStatus('Starting AI grading process...', 'ready');
-            try {
-                // Send message to content script to start grading
-                const response = await chrome.tabs.sendMessage(tab.id, {
-                    action: 'startGrading',
-                    backendUrl: 'http://localhost:8000' // TODO: Make this configurable
-                });
-                if (response?.success) {
-                    console.log('Popup: Grading started successfully');
-                }
-                else {
-                    throw new Error(response?.error || 'Unknown error');
-                }
-            }
-            catch (error) {
-                console.error('Popup: Error starting grading', error);
-                updateStatus(`Error: ${error.message}`, 'error');
-                // Reset button
-                gradeBtn.disabled = false;
-                gradeBtn.textContent = '🤖 Grade with AI';
-            }
-        });
-    }
-    // Action buttons
-    if (settingsBtn) {
-        settingsBtn.addEventListener('click', () => {
-            console.log('Popup: Settings button clicked');
-            // TODO: Open settings page or expand settings
-            // For now, just log the current settings
-            chrome.storage.sync.get(null, (items) => {
-                console.log('Popup: Current settings:', items);
-            });
-        });
-    }
-    if (helpBtn) {
-        helpBtn.addEventListener('click', () => {
-            console.log('Popup: Help button clicked');
-            // Open help/documentation
-            chrome.tabs.create({
-                url: 'https://github.com/your-repo/supergrader/wiki'
-            }).catch(error => {
-                console.error('Popup: Error opening help page', error);
             });
         });
     }
@@ -310,35 +186,6 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
             loadSettings().catch(error => {
                 console.error('Popup: Error reloading settings', error);
             });
-            sendResponse({ success: true });
-            break;
-        case 'gradingProgress':
-            // Update UI based on grading progress
-            if (request.progress !== undefined) {
-                const progressPercent = Math.round(request.progress * 100);
-                updateStatus(`Grading progress: ${progressPercent}%`, 'ready');
-                if (gradeBtn) {
-                    gradeBtn.textContent = `⏳ Grading... ${progressPercent}%`;
-                }
-            }
-            sendResponse({ success: true });
-            break;
-        case 'gradingComplete':
-            // Grading finished
-            updateStatus('Grading completed successfully!', 'ready');
-            if (gradeBtn) {
-                gradeBtn.disabled = false;
-                gradeBtn.textContent = '🤖 Grade with AI';
-            }
-            sendResponse({ success: true });
-            break;
-        case 'gradingError':
-            // Grading error
-            updateStatus(`Grading error: ${request.error || 'Unknown error'}`, 'error');
-            if (gradeBtn) {
-                gradeBtn.disabled = false;
-                gradeBtn.textContent = '🤖 Grade with AI';
-            }
             sendResponse({ success: true });
             break;
         default:

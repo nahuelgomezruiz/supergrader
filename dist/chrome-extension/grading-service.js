@@ -24,29 +24,57 @@ class SimpleFeedbackUI {
             console.error('SimpleFeedbackUI: Could not find .rubricEditor container');
             return;
         }
+        // Verify the element is still in the DOM and visible
+        if (!doc.contains(cfg.element)) {
+            console.warn(`Element for ${cfg.rubricItemId} is no longer in DOM - suggestion may be misplaced`);
+        }
         // Determine insertion strategy based on item type
-        let insertTarget;
+        let insertTarget = null;
         // Check if this is a nested checkbox (ID format: "parentId-childId")
         if (cfg.rubricItemId.includes('-')) {
-            // For nested checkboxes, insert directly after the specific checkbox element
-            insertTarget = cfg.element.closest('.rubricEntryDragContainer') || cfg.element;
-            console.log(`📍 Inserting nested checkbox suggestion for ${cfg.rubricItemId} after:`, insertTarget.className);
+            // For nested checkboxes, find the most specific container
+            insertTarget = cfg.element.closest('.rubricEntryDragContainer');
+            // If not found, try to find the parent group and look for the specific item
+            if (!insertTarget) {
+                const [parentId] = cfg.rubricItemId.split('-');
+                const parentGroup = Array.from(doc.querySelectorAll('.rubricItemGroup')).find(group => {
+                    const keyBtn = group.querySelector('.rubricItemGroup--key');
+                    return keyBtn?.textContent?.trim() === parentId;
+                });
+                if (parentGroup) {
+                    // Look for the specific nested item within the expanded group
+                    const nestedContainer = parentGroup.parentElement?.querySelector('.rubricItemGroup--rubricItems');
+                    if (nestedContainer) {
+                        const nestedItems = Array.from(nestedContainer.querySelectorAll('.rubricItem'));
+                        const targetNested = nestedItems.find(item => item.contains(cfg.element));
+                        if (targetNested) {
+                            insertTarget = targetNested.closest('.rubricEntryDragContainer') || targetNested;
+                        }
+                    }
+                }
+            }
+            console.log(`📍 Inserting nested checkbox suggestion for ${cfg.rubricItemId} after:`, insertTarget?.className || 'NOT_FOUND');
         }
         else {
-            // For top-level items, use the existing logic
+            // For top-level items, use the existing logic with better fallbacks
             let rubricEntry = cfg.element.closest('.rubricEntry');
             if (!rubricEntry) {
                 rubricEntry = cfg.element.closest('.rubricEntryGroupBundle');
             }
-            if (!rubricEntry) {
-                console.error('SimpleFeedbackUI: Could not find insertion target for item', cfg.rubricItemId);
-                return;
+            if (rubricEntry) {
+                insertTarget = rubricEntry.closest('.rubricEntryGroupBundle') || rubricEntry.closest('.rubricEntryDragContainer') || rubricEntry;
             }
-            insertTarget = rubricEntry.closest('.rubricEntryGroupBundle') || rubricEntry.closest('.rubricEntryDragContainer') || rubricEntry;
-            console.log(`📍 Inserting top-level suggestion for ${cfg.rubricItemId} after:`, insertTarget.className);
+            console.log(`📍 Inserting top-level suggestion for ${cfg.rubricItemId} after:`, insertTarget?.className || 'NOT_FOUND');
         }
-        // Insert the box right after the target
-        insertTarget.insertAdjacentElement('afterend', box);
+        // If we couldn't find a good insertion point, fall back to appending to the end of the rubric editor
+        if (!insertTarget) {
+            console.warn(`⚠️ Could not find proper insertion target for ${cfg.rubricItemId}, appending to rubric editor`);
+            rubricEditor.appendChild(box);
+        }
+        else {
+            // Insert the box right after the target
+            insertTarget.insertAdjacentElement('afterend', box);
+        }
         // Style the box to match the rubric editor width and spacing
         box.style.margin = '8px 0';
         box.style.width = 'calc(100% - 16px)';
@@ -110,7 +138,7 @@ class SimpleFeedbackUI {
                 originalDecision: `${cfg.decision} - ${cfg.comment}`,
                 userFeedback: input.value.trim()
             });
-            form.innerHTML = '<div class="sg-feedback-sent">✓ Feedback sent!</div>';
+            form.innerHTML = '<div class="sg-feedback-sent">Feedback sent!</div>';
             setTimeout(() => this.removeSuggestion(cfg.rubricItemId), 2000);
         });
         return div;
@@ -160,8 +188,118 @@ class SimpleFeedbackUI {
       .sg-send-btn:hover:not(:disabled){background:#3d6b75}
       .sg-send-btn:disabled{background:#6c757d;cursor:not-allowed;opacity:.6}
       .sg-feedback-sent{text-align:center;color:white;font-weight:600;padding:20px}
+      
+      /* Loading Overlay Styles */
+      .supergrader-loading-overlay {
+        background: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(3px);
+        -webkit-backdrop-filter: blur(3px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        pointer-events: auto;
+      }
+      
+      .sg-loading-content {
+        text-align: center;
+        color: #495057;
+        background: rgba(255, 255, 255, 0.95);
+        padding: 24px 32px;
+        border-radius: 12px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+        border: 1px solid rgba(0, 0, 0, 0.08);
+      }
+      
+      .sg-loading-spinner {
+        width: 32px;
+        height: 32px;
+        border: 3px solid #e9ecef;
+        border-top: 3px solid #20545c;
+        border-radius: 50%;
+        animation: sg-spin 1s linear infinite;
+        margin: 0 auto 16px;
+      }
+      
+      .sg-loading-text {
+        font-size: 14px;
+        font-weight: 500;
+        color: #495057;
+        margin: 0;
+      }
+      
+      .sg-loading-subtext {
+        font-size: 12px;
+        color: #6c757d;
+        margin: 4px 0 0 0;
+        font-weight: 400;
+      }
+      
+      @keyframes sg-spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
     `;
         document.head.appendChild(style);
+    }
+    showLoadingOverlay(message = 'Collecting assignment data...', subtext = 'Please wait while we analyze the rubric and files') {
+        this.hideLoadingOverlay(); // Remove any existing overlay
+        const doc = getGradingDoc();
+        const rubricEditor = doc.querySelector('.rubricEditor');
+        if (!rubricEditor) {
+            console.warn('Could not find .rubricEditor to show loading overlay');
+            return;
+        }
+        // Get the rubricEditor's position and dimensions for fixed positioning
+        const rect = rubricEditor.getBoundingClientRect();
+        const scrollTop = doc.documentElement.scrollTop || doc.body.scrollTop;
+        const scrollLeft = doc.documentElement.scrollLeft || doc.body.scrollLeft;
+        const overlay = doc.createElement('div');
+        overlay.className = 'supergrader-loading-overlay';
+        overlay.id = 'supergrader-loading-overlay';
+        // Use fixed positioning to prevent movement during scrolling
+        overlay.style.position = 'fixed';
+        overlay.style.top = `${rect.top}px`;
+        overlay.style.left = `${rect.left}px`;
+        overlay.style.width = `${rect.width}px`;
+        overlay.style.height = `${rect.height}px`;
+        overlay.style.zIndex = '10000';
+        overlay.innerHTML = `
+      <div class="sg-loading-content">
+        <div class="sg-loading-spinner"></div>
+        <div class="sg-loading-text">${this.escape(message)}</div>
+        <div class="sg-loading-subtext">${this.escape(subtext)}</div>
+      </div>
+    `;
+        // Prevent all interaction with the rubric editor
+        overlay.addEventListener('click', (e) => e.stopPropagation());
+        overlay.addEventListener('mousedown', (e) => e.stopPropagation());
+        overlay.addEventListener('keydown', (e) => e.stopPropagation());
+        overlay.addEventListener('touchstart', (e) => e.stopPropagation());
+        // Append to document body instead of rubricEditor to avoid scroll issues
+        doc.body.appendChild(overlay);
+        console.log('🔒 Loading overlay shown - rubric interaction blocked');
+    }
+    hideLoadingOverlay() {
+        const doc = getGradingDoc();
+        const existingOverlay = doc.getElementById('supergrader-loading-overlay');
+        if (existingOverlay) {
+            existingOverlay.remove();
+            console.log('🔓 Loading overlay hidden - rubric interaction restored');
+        }
+    }
+    updateLoadingOverlay(message, subtext) {
+        const doc = getGradingDoc();
+        const overlay = doc.getElementById('supergrader-loading-overlay');
+        if (overlay) {
+            const textEl = overlay.querySelector('.sg-loading-text');
+            const subtextEl = overlay.querySelector('.sg-loading-subtext');
+            if (textEl)
+                textEl.textContent = message;
+            if (subtextEl && subtext)
+                subtextEl.textContent = subtext;
+        }
     }
 }
 // Utility functions (using different names to avoid conflicts)
@@ -181,6 +319,9 @@ class ChromeGradingService {
         this.cachedNestedElements = new Map(); // Cache DOM elements for nested items
         this.cachedNestedData = new Map(); // Cache extracted nested checkbox data
         this.cachedRadioOptions = new Map(); // Cache radio options
+        // Suggestion processing state
+        this.isProcessingSuggestions = false;
+        this.suggestionProcessingTimer = null;
         this.backendUrl = 'http://localhost:8000';
         this.api = window.GradescopeAPI;
         this.feedbackUI = new SimpleFeedbackUI();
@@ -415,9 +556,15 @@ class ChromeGradingService {
         const expandBtn = groupElement.querySelector('.rubricItemGroup--key[aria-expanded="false"]');
         let wasExpanded = true;
         if (expandBtn) {
-            console.log(`🔓 Expanding group to find ${childId}...`);
+            // During suggestion processing, expand more quietly to reduce visual disruption
+            if (this.isProcessingSuggestions) {
+                console.log(`🔓 Quietly expanding group to find ${childId}...`);
+            }
+            else {
+                console.log(`🔓 Expanding group to find ${childId}...`);
+            }
             expandBtn.click();
-            await waitDelay(350);
+            await waitDelay(this.isProcessingSuggestions ? 200 : 350); // Faster during processing
             wasExpanded = false;
         }
         // Find the container with nested items
@@ -756,109 +903,116 @@ class ChromeGradingService {
      */
     async gradeSubmission(onProgress) {
         console.log('🚀 Starting grading process...');
+        // Show loading overlay immediately to prevent user interaction
+        this.feedbackUI.showLoadingOverlay('Initializing...', 'Preparing to analyze assignment');
         // Clear any existing feedback boxes and cached rubric data
         this.feedbackUI.clearAllSuggestions();
         this.clearCache();
-        // Extract assignment context
-        const context = this.extractAssignmentContext();
-        if (!context) {
-            throw new Error('Could not extract assignment context from page');
-        }
-        console.log('📋 Assignment context:', context);
-        // Get the GradescopeAPI instance
-        const api = window.GradescopeAPI;
-        if (!api) {
-            throw new Error('GradescopeAPI not initialized');
-        }
-        // Extract rubric structure directly from DOM since the API doesn't preserve elements
-        console.log('🔍 Extracting rubric directly from DOM...');
-        const rubricResult = await this.extractRubricFromDOM();
-        console.log(`📊 Found ${rubricResult.items.length} rubric items`);
-        // Check cache first, then download submission files if needed
-        const cacheKey = this.generateFileCacheKey(context);
-        console.log(`🔑 Generated cache key: ${cacheKey} (from submission_id: ${context.submission_id})`);
-        let downloadResult;
-        if (this.cachedFiles.has(cacheKey)) {
-            console.log('📋 Using cached submission files...');
-            downloadResult = this.cachedFiles.get(cacheKey);
-            console.log(`✅ Using ${Object.keys(downloadResult.files).length} cached files`);
-        }
-        else {
-            console.log('📥 Downloading submission files...');
-            try {
-                if (!api.downloadSubmissionFiles) {
-                    throw new Error('GradescopeAPI download method not available');
-                }
-                downloadResult = await api.downloadSubmissionFiles(context.submission_id);
-                // Cache the downloaded files
-                this.cachedFiles.set(cacheKey, downloadResult);
-                console.log(`✅ Downloaded and cached ${Object.keys(downloadResult.files).length} files`);
-            }
-            catch (error) {
-                console.error('❌ Error downloading files:', error);
-                throw new Error(`Failed to download submission files: ${error.message}`);
-            }
-        }
-        // Convert rubric to backend format
-        console.log('🔄 Converting rubric to backend format...');
-        console.log('🔍 Input rubric structure:', rubricResult);
-        const backendRubricItems = await this.convertRubricToBackendFormat(rubricResult);
-        // Prepare request
-        const request = {
-            assignment_context: context,
-            source_files: Object.fromEntries(Object.entries(downloadResult.files).map(([path, file]) => {
-                let content = file.content;
-                if (this.isTestFile(path) && typeof content === 'string') {
-                    if (content.length > 100) {
-                        content = content.slice(0, 100) + '[TRIMMED]';
-                    }
-                }
-                return [path, content];
-            })),
-            rubric_items: backendRubricItems.sort((a, b) => {
-                // QWERTY keyboard order for letter suffixes (matches Gradescope UI)
-                const qwertyOrder = 'QWERTYUIOPASDFGHJKLZXCVBNM';
-                // Custom sort to put ID "0" after ID "9" 
-                if (a.id === "0" && b.id === "9")
-                    return 1; // 0 comes after 9
-                if (a.id === "9" && b.id === "0")
-                    return -1; // 9 comes before 0
-                // Check if IDs are hierarchical (e.g., "6-Q", "6-W")
-                const aMatch = a.id.match(/^(\d+)-([A-Z])$/);
-                const bMatch = b.id.match(/^(\d+)-([A-Z])$/);
-                if (aMatch && bMatch) {
-                    const [, aNum, aLetter] = aMatch;
-                    const [, bNum, bLetter] = bMatch;
-                    // First compare the numeric part
-                    const numDiff = parseInt(aNum) - parseInt(bNum);
-                    if (numDiff !== 0)
-                        return numDiff;
-                    // If numeric parts are equal, compare letters by QWERTY order
-                    const aLetterIndex = qwertyOrder.indexOf(aLetter);
-                    const bLetterIndex = qwertyOrder.indexOf(bLetter);
-                    return aLetterIndex - bLetterIndex;
-                }
-                // For single digit IDs, treat "0" as if it were "9.5" 
-                const getNumericValue = (id) => {
-                    if (id === "0")
-                        return 9.5;
-                    const num = parseInt(id);
-                    return isNaN(num) ? Infinity : num;
-                };
-                const aNum = getNumericValue(a.id);
-                const bNum = getNumericValue(b.id);
-                // If both are numeric (including our special "0" case)
-                if (aNum !== Infinity && bNum !== Infinity) {
-                    return aNum - bNum;
-                }
-                // Otherwise use normal string comparison
-                return a.id.localeCompare(b.id);
-            })
-        };
-        console.log('📤 Sending grading request to backend...');
-        console.log('Request JSON:', JSON.stringify(request, null, 2));
-        // Send request to backend with SSE streaming
         try {
+            // Extract assignment context
+            const context = this.extractAssignmentContext();
+            if (!context) {
+                throw new Error('Could not extract assignment context from page');
+            }
+            console.log('📋 Assignment context:', context);
+            // Get the GradescopeAPI instance
+            const api = window.GradescopeAPI;
+            if (!api) {
+                throw new Error('GradescopeAPI not initialized');
+            }
+            // Extract rubric structure directly from DOM since the API doesn't preserve elements
+            console.log('🔍 Extracting rubric directly from DOM...');
+            this.feedbackUI.updateLoadingOverlay('Analyzing rubric structure...', 'Extracting questions and options from the grading interface');
+            const rubricResult = await this.extractRubricFromDOM();
+            console.log(`📊 Found ${rubricResult.items.length} rubric items`);
+            // Check cache first, then download submission files if needed
+            const cacheKey = this.generateFileCacheKey(context);
+            console.log(`🔑 Generated cache key: ${cacheKey} (from submission_id: ${context.submission_id})`);
+            let downloadResult;
+            if (this.cachedFiles.has(cacheKey)) {
+                console.log('📋 Using cached submission files...');
+                downloadResult = this.cachedFiles.get(cacheKey);
+                console.log(`✅ Using ${Object.keys(downloadResult.files).length} cached files`);
+            }
+            else {
+                console.log('📥 Downloading submission files...');
+                this.feedbackUI.updateLoadingOverlay('Downloading student files...', 'Retrieving code and documents for analysis');
+                try {
+                    if (!api.downloadSubmissionFiles) {
+                        throw new Error('GradescopeAPI download method not available');
+                    }
+                    downloadResult = await api.downloadSubmissionFiles(context.submission_id);
+                    // Cache the downloaded files
+                    this.cachedFiles.set(cacheKey, downloadResult);
+                    console.log(`✅ Downloaded and cached ${Object.keys(downloadResult.files).length} files`);
+                }
+                catch (error) {
+                    console.error('❌ Error downloading files:', error);
+                    throw new Error(`Failed to download submission files: ${error.message}`);
+                }
+            }
+            // Convert rubric to backend format
+            console.log('🔄 Converting rubric to backend format...');
+            this.feedbackUI.updateLoadingOverlay('Processing rubric data...', 'Preparing questions and options for AI analysis');
+            console.log('🔍 Input rubric structure:', rubricResult);
+            const backendRubricItems = await this.convertRubricToBackendFormat(rubricResult);
+            // Prepare request
+            const request = {
+                assignment_context: context,
+                source_files: Object.fromEntries(Object.entries(downloadResult.files).map(([path, file]) => {
+                    let content = file.content;
+                    if (this.isTestFile(path) && typeof content === 'string') {
+                        if (content.length > 100) {
+                            content = content.slice(0, 100) + '[TRIMMED]';
+                        }
+                    }
+                    return [path, content];
+                })),
+                rubric_items: backendRubricItems.sort((a, b) => {
+                    // QWERTY keyboard order for letter suffixes (matches Gradescope UI)
+                    const qwertyOrder = 'QWERTYUIOPASDFGHJKLZXCVBNM';
+                    // Custom sort to put ID "0" after ID "9" 
+                    if (a.id === "0" && b.id === "9")
+                        return 1; // 0 comes after 9
+                    if (a.id === "9" && b.id === "0")
+                        return -1; // 9 comes before 0
+                    // Check if IDs are hierarchical (e.g., "6-Q", "6-W")
+                    const aMatch = a.id.match(/^(\d+)-([A-Z])$/);
+                    const bMatch = b.id.match(/^(\d+)-([A-Z])$/);
+                    if (aMatch && bMatch) {
+                        const [, aNum, aLetter] = aMatch;
+                        const [, bNum, bLetter] = bMatch;
+                        // First compare the numeric part
+                        const numDiff = parseInt(aNum) - parseInt(bNum);
+                        if (numDiff !== 0)
+                            return numDiff;
+                        // If numeric parts are equal, compare letters by QWERTY order
+                        const aLetterIndex = qwertyOrder.indexOf(aLetter);
+                        const bLetterIndex = qwertyOrder.indexOf(bLetter);
+                        return aLetterIndex - bLetterIndex;
+                    }
+                    // For single digit IDs, treat "0" as if it were "9.5" 
+                    const getNumericValue = (id) => {
+                        if (id === "0")
+                            return 9.5;
+                        const num = parseInt(id);
+                        return isNaN(num) ? Infinity : num;
+                    };
+                    const aNum = getNumericValue(a.id);
+                    const bNum = getNumericValue(b.id);
+                    // If both are numeric (including our special "0" case)
+                    if (aNum !== Infinity && bNum !== Infinity) {
+                        return aNum - bNum;
+                    }
+                    // Otherwise use normal string comparison
+                    return a.id.localeCompare(b.id);
+                })
+            };
+            console.log('📤 Sending grading request to backend...');
+            console.log('Request JSON:', JSON.stringify(request, null, 2));
+            // Hide loading overlay - data collection is complete, now streaming results
+            this.feedbackUI.hideLoadingOverlay();
+            // Send request to backend with SSE streaming
             const response = await fetch(`${this.backendUrl}/api/v1/grade-submission`, {
                 method: 'POST',
                 headers: {
@@ -899,6 +1053,8 @@ class ChromeGradingService {
                                     confidence: `${(event.decision.confidence * 100).toFixed(1)}%`,
                                     verdict: event.decision.verdict
                                 });
+                                // Start suggestion processing phase (shows loading overlay)
+                                this.startSuggestionProcessing();
                                 // Display the suggestion in the UI
                                 await this.displayGradingSuggestion(event.decision);
                             }
@@ -913,10 +1069,24 @@ class ChromeGradingService {
                 }
             }
             console.log('✅ Grading completed successfully');
+            // If we were processing suggestions, finish up
+            if (this.isProcessingSuggestions) {
+                this.finishSuggestionProcessing();
+            }
         }
-        catch (error) {
-            console.error('❌ Error during grading:', error);
-            throw error;
+        catch (dataCollectionError) {
+            // Hide loading overlay on data collection error
+            this.feedbackUI.hideLoadingOverlay();
+            // Clean up suggestion processing state
+            if (this.isProcessingSuggestions) {
+                this.isProcessingSuggestions = false;
+                if (this.suggestionProcessingTimer) {
+                    clearTimeout(this.suggestionProcessingTimer);
+                    this.suggestionProcessingTimer = null;
+                }
+            }
+            console.error('❌ Error during data collection or grading:', dataCollectionError);
+            throw dataCollectionError;
         }
     }
     /**
@@ -925,6 +1095,8 @@ class ChromeGradingService {
     async displayGradingSuggestion(decision) {
         // Cache decision so we can re-display it when groups are expanded
         this.cachedDecisions.set(decision.rubric_item_id, decision);
+        // If we're processing suggestions, suppress scroll events temporarily
+        const wasProcessing = this.isProcessingSuggestions;
         try {
             // Get the current rubric structure
             const rubricResult = await this.extractRubricFromDOM();
@@ -1158,6 +1330,61 @@ class ChromeGradingService {
         this.cachedDecisions.clear();
     }
     /**
+     * Start suggestion processing phase with loading overlay
+     */
+    startSuggestionProcessing() {
+        if (!this.isProcessingSuggestions) {
+            console.log('🔄 Starting suggestion processing phase...');
+            this.isProcessingSuggestions = true;
+            this.feedbackUI.showLoadingOverlay('Processing AI suggestions...', 'Displaying grading recommendations in the rubric');
+        }
+        // Reset the completion timer - we'll wait for a brief pause after the last suggestion
+        if (this.suggestionProcessingTimer) {
+            clearTimeout(this.suggestionProcessingTimer);
+        }
+        this.suggestionProcessingTimer = window.setTimeout(() => {
+            this.finishSuggestionProcessing();
+        }, 1000); // Wait 1 second after the last suggestion before finishing
+    }
+    /**
+     * Finish suggestion processing phase
+     */
+    finishSuggestionProcessing() {
+        if (this.isProcessingSuggestions) {
+            console.log('✅ Finishing suggestion processing phase...');
+            this.isProcessingSuggestions = false;
+            if (this.suggestionProcessingTimer) {
+                clearTimeout(this.suggestionProcessingTimer);
+                this.suggestionProcessingTimer = null;
+            }
+            // Hide the loading overlay
+            this.feedbackUI.hideLoadingOverlay();
+            // Scroll back to the top of the grading panel
+            this.scrollToTopOfGradingPanel();
+            console.log('🎯 Suggestion processing complete - scrolled to top');
+        }
+    }
+    /**
+     * Refresh cached elements that may have become stale due to DOM changes
+     */
+    refreshCachedElements() {
+        console.log('🔄 Refreshing cached DOM elements...');
+        // Clear stale element cache but keep data and decisions
+        const staleKeys = [];
+        for (const [itemId, element] of this.cachedNestedElements.entries()) {
+            // Check if the element is still in the DOM
+            if (!document.contains(element)) {
+                staleKeys.push(itemId);
+            }
+        }
+        // Remove stale elements
+        staleKeys.forEach(key => {
+            console.log(`🗑️ Removing stale cached element: ${key}`);
+            this.cachedNestedElements.delete(key);
+        });
+        console.log(`✅ Refreshed cache - removed ${staleKeys.length} stale elements`);
+    }
+    /**
      * Set up listener to detect when groups are expanded/collapsed
      * Note: With caching, this is mainly for edge cases where cache misses occur
      */
@@ -1174,13 +1401,15 @@ class ChromeGradingService {
             // Check if it's a group toggle button
             if (target && (target.classList.contains('rubricItemGroup--key') || target.closest('.rubricItemGroup--key'))) {
                 console.log('🔄 Group toggle detected...');
+                // Refresh cached elements to remove stale references
+                this.refreshCachedElements();
                 // Only re-display if we have cached decisions that need to be shown
                 if (this.cachedDecisions.size > 0) {
                     setTimeout(() => {
                         this.reDisplayNestedSuggestions().catch(error => {
                             console.error('❌ Error re-displaying nested suggestions:', error);
                         });
-                    }, 300);
+                    }, 350); // Slightly longer delay to ensure DOM is updated
                 }
                 else {
                     console.log('📋 No cached decisions to re-display');
