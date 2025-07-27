@@ -1310,7 +1310,7 @@ class ChromeGradingService {
           this.reDisplayNestedSuggestions().catch(error => {
             console.error('❌ Error re-displaying nested suggestions:', error);
           });
-        }, 800); // Increased delay to ensure DOM is fully updated
+        }, 300); // Reduced delay for faster response
       }
     }, true);
   }
