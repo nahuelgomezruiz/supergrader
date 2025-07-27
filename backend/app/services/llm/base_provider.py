@@ -77,6 +77,17 @@ TASKS – for this single checkbox only:
 3. Draft a short feedback comment explaining your decision (for both check and uncheck).
 4. Estimate a confidence percentage (0‑100).
 
+GENERAL CONSIDERATIONS:
+- When judging the efficacy of the testing description on the README, it is ok if the student is not specific or cronological. Consider the good effort of the student description of the testing process. Be lenient on this type of question.
+- To decide if the testing is adequately documented, look if either most unit tests have a comment explaining what they are testing or if the README has a very detailed description of the testing process.
+- When evaluating the testing of specific components, such as functions or classes, look if the SPECIFIC tests described on the rubric are present.
+- When judging whether file headers were correct, remember that: 
+--> The driver (main.cpp) file header should describe the program at a high level, leaving out implementation details
+--> All header (.h files apart from unit tests) file headers should explain at a high level what the class represents and leave implementation details only if they are relevant to a client
+--> All driver (most .cpp) file headers should just state that they implement the underlying class
+- Students not required to implement JFFE functions
+- When evaluating the design and implementation of functions and classes, adhere strictly to what the rubric is asking for. Think step-by-step to figure out which of the points in the rubric are accomplished by the code of the student, and give an answer only when you're certain about which of the bullet points were addressed by the student.
+
 OUTPUT FORMAT (JSON only, no extra text):
 ```json
 {{
@@ -86,15 +97,6 @@ OUTPUT FORMAT (JSON only, no extra text):
   "confidence": 0‑100
 }}
 ```
-
-GENERAL CONSIDERATIONS:
-- When evaluation the efficacy of the testing description on the README, it is ok if the
-student is not extremely specific or cronological. Be somewhat lenient.
-- To decide if the testing is adequately documented, look if either most unit
-tests have a comment explaining what they are testing or if the README has a
-very detailed description of the testing process.
-- When evaluating the testing of specific components, such as functions or
-classes, look if the SPECIFIC tests described on the rubric are present.
 
 Remember: think internally first, then output **only** the JSON block."""
     
@@ -149,8 +151,18 @@ TASKS – for this radio item only:
 2. Gather the most relevant evidence lines for your choice (file + line range).
 3. Draft a short feedback comment explaining your choice (for all options,
 regardless of points).
-4. Consider whether any other option could reasonably apply. If so, mention it in your comment and explain why it might be plausible.
-5. Estimate a confidence percentage (0‑100).
+4. Estimate a confidence percentage (0‑100).
+
+GENERAL CONSIDERATIONS:
+- When judging the efficacy of the testing description on the README, it is ok if the student is not specific or cronological. Consider the good effort of the student description of the testing process. Be lenient on this type of question.
+- To decide if the testing is adequately documented, look if either most unit tests have a comment explaining what they are testing or if the README has a very detailed description of the testing process.
+- When evaluating the testing of specific components, such as functions or classes, look if the SPECIFIC tests described on the rubric are present.
+- When judging whether file headers were correct, remember that: 
+--> The driver (main.cpp) file header should describe the program at a high level, leaving out implementation details
+--> All header (.h files apart from unit tests) file headers should explain at a high level what the class represents and leave implementation details only if they are relevant to a client
+--> All driver (most .cpp) file headers should just state that they implement the underlying class
+- Students not required to implement JFFE functions
+- When evaluating the design and implementation of functions and classes, adhere strictly to what the rubric is asking for. Think step-by-step to figure out which of the points in the rubric are accomplished by the code of the student, and give an answer only when you're certain about which of the bullet points were addressed by the student.
 
 OUTPUT FORMAT (JSON only, no extra text):
 ```json
@@ -161,14 +173,5 @@ OUTPUT FORMAT (JSON only, no extra text):
   "confidence": 0‑100
 }}
 ```
-
-GENERAL CONSIDERATIONS:
-- When evaluation the efficacy of the testing description on the README, it is ok if the
-student is not extremely specific or cronological. Be somewhat lenient.
-- To decide if the testing is adequately documented, look if either most unit
-tests have a comment explaining what they are testing or if the README has a
-very detailed description of the testing process.
-- When evaluating the testing of specific components, such as functions or
-classes, look if the SPECIFIC tests described on the rubric are present.
 
 Remember: think internally first, then output **only** the JSON block with the letter of your chosen option.""" 

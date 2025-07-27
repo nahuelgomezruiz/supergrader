@@ -2188,8 +2188,11 @@ async def evaluate_project(
         # Parse CSV
         parser = CSVParser()
         rubric_items, human_grades = parser.parse_rubric_from_csv(csv_file)
-        
-        print(f"    Found {len(rubric_items)} rubric items and {len(human_grades)} students")
+        # Pre-filter bonus-point and zero-point items so all subsequent logic
+        # (backend calls, statistics, Excel reports) uses the same cleaned list.
+        filtered_rubric_items = filter_rubric_items_for_backend(rubric_items)
+
+        print(f"    Found {len(filtered_rubric_items)} rubric items after filtering and {len(human_grades)} students")
         
         # Select students to evaluate (randomly sampled)
         all_student_ids = list(human_grades.keys())
@@ -2279,7 +2282,7 @@ async def evaluate_project(
         # Store evaluation data for unified report
         evaluation_data = {
             'csv_name': csv_file.stem,
-            'rubric_items': rubric_items,
+            'rubric_items': filtered_rubric_items,
             'human_grades': evaluated_human_grades,
             'backend_results': backend_results
         }
@@ -2336,8 +2339,11 @@ async def evaluate_project_with_points_analysis(
         # Parse CSV
         parser = CSVParser()
         rubric_items, human_grades = parser.parse_rubric_from_csv(csv_file)
-        
-        print(f"    Found {len(rubric_items)} rubric items and {len(human_grades)} students")
+        # Apply same rubric filtering used elsewhere so bonus / zero-point items
+        # never appear in points-analysis statistics.
+        filtered_rubric_items = filter_rubric_items_for_backend(rubric_items)
+
+        print(f"    Found {len(filtered_rubric_items)} rubric items after filtering and {len(human_grades)} students")
         
         # Select students to evaluate
         all_student_ids = list(human_grades.keys())
@@ -2435,8 +2441,8 @@ async def evaluate_project_with_points_analysis(
         
         # Calculate points comparison for this CSV
         if ai_results:
-            comparisons = PointsCalculator.compare_submissions(human_grades, ai_results, rubric_items)
-            stats = PointsCalculator.calculate_rubric_stats(comparisons, rubric_items)
+            comparisons = PointsCalculator.compare_submissions(human_grades, ai_results, filtered_rubric_items)
+            stats = PointsCalculator.calculate_rubric_stats(comparisons, filtered_rubric_items)
             
             all_comparisons.extend(comparisons)
             all_stats.extend(stats)
@@ -2582,7 +2588,7 @@ async def collect_evaluation_tasks(
                     source_files=source_files,
                     rubric_items=backend_rubric_items,
                     human_grade=human_grades[student_id],
-                    rubric_items_list=rubric_items
+                    rubric_items_list=filtered_rubric_items
                 )
                 tasks.append(task)
     
