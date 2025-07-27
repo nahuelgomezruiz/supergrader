@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Radio Credit Labels Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-container { border: 1px solid #ccc; padding: 20px; margin: 20px 0; }
+        .rubricItemGroup { margin: 20px 0; }
+        .rubricItemGroup--rubricItems { margin-left: 20px; }
+        .rubricItem { margin: 10px 0; padding: 10px; border: 1px solid #eee; }
+        .rubricField-points { font-weight: bold; color: green; }
+        .rubricField-description { margin: 5px 0; }
+        button { padding: 5px 10px; margin: 5px; }
+        .results { background: #f0f0f0; padding: 10px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Radio Credit Labels Test</h1>
+    
+    <!-- Test Case 1: Standard Full/Partial/No Credit -->
+    <div class="test-container">
+        <h2>Test Case 1: Standard Credit System (5/3/0 points)</h2>
+        <div class="rubricItemGroup" id="test1">
+            <button aria-expanded="false">Expand Test 1</button>
+            <div class="rubricItemGroup--rubricItems" style="display: none;">
+                <div class="rubricItem">
+                    <div class="rubricField-points">+5.0</div>
+                    <div class="rubricField-description">Excellent implementation with all requirements met</div>
+                </div>
+                <div class="rubricItem">
+                    <div class="rubricField-points">+3.0</div>
+                    <div class="rubricField-description">Good implementation with minor issues</div>
+                </div>
+                <div class="rubricItem">
+                    <div class="rubricField-points">+0.0</div>
+                    <div class="rubricField-description">Significant issues or missing implementation</div>
+                </div>
+            </div>
+        </div>
+        <button onclick="testRadioOptions('test1')">Test Case 1</button>
+        <div id="result1" class="results"></div>
+    </div>
+
+    <!-- Test Case 2: Multiple Partial Credit Levels -->
+    <div class="test-container">
+        <h2>Test Case 2: Multiple Partial Levels (10/7/4/0 points)</h2>
+        <div class="rubricItemGroup" id="test2">
+            <button aria-expanded="false">Expand Test 2</button>
+            <div class="rubricItemGroup--rubricItems" style="display: none;">
+                <div class="rubricItem">
+                    <div class="rubricField-points">+10.0</div>
+                    <div class="rubricField-description">Perfect implementation</div>
+                </div>
+                <div class="rubricItem">
+                    <div class="rubricField-points">+7.0</div>
+                    <div class="rubricField-description">Very good with minor gaps</div>
+                </div>
+                <div class="rubricItem">
+                    <div class="rubricField-points">+4.0</div>
+                    <div class="rubricField-description">Adequate but missing key elements</div>
+                </div>
+                <div class="rubricItem">
+                    <div class="rubricField-points">+0.0</div>
+                    <div class="rubricField-description">Inadequate or missing</div>
+                </div>
+            </div>
+        </div>
+        <button onclick="testRadioOptions('test2')">Test Case 2</button>
+        <div id="result2" class="results"></div>
+    </div>
+
+    <!-- Test Case 3: Edge Case - All Same Points -->
+    <div class="test-container">
+        <h2>Test Case 3: Edge Case - All Same Points (2/2/2 points)</h2>
+        <div class="rubricItemGroup" id="test3">
+            <button aria-expanded="false">Expand Test 3</button>
+            <div class="rubricItemGroup--rubricItems" style="display: none;">
+                <div class="rubricItem">
+                    <div class="rubricField-points">+2.0</div>
+                    <div class="rubricField-description">Option A - same points</div>
+                </div>
+                <div class="rubricItem">
+                    <div class="rubricField-points">+2.0</div>
+                    <div class="rubricField-description">Option B - same points</div>
+                </div>
+                <div class="rubricItem">
+                    <div class="rubricField-points">+2.0</div>
+                    <div class="rubricField-description">Option C - same points</div>
+                </div>
+            </div>
+        </div>
+        <button onclick="testRadioOptions('test3')">Test Case 3</button>
+        <div id="result3" class="results"></div>
+    </div>
+
+    <script>
+        // Mock the Chrome extension functions for testing
+        function waitDelay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        function extractTextWithSpacing(element) {
+            return element.textContent?.trim() || '';
+        }
+
+        async function testRadioOptions(testId) {
+            const groupElement = document.getElementById(testId);
+            const resultDiv = document.getElementById('result' + testId.slice(-1));
+            
+            try {
+                const options = await extractRadioOptionsTest(groupElement);
+                resultDiv.innerHTML = `
+                    <h4>Results:</h4>
+                    <pre>${JSON.stringify(options, null, 2)}</pre>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        }
+
+        async function extractRadioOptionsTest(groupElement) {
+            const options = {};
+
+            // Expand the accordion if needed
+            const expandBtn = groupElement.querySelector('button[aria-expanded="false"]');
+            if (expandBtn) {
+                expandBtn.click();
+                expandBtn.setAttribute('aria-expanded', 'true');
+                const container = groupElement.querySelector('.rubricItemGroup--rubricItems');
+                if (container) container.style.display = 'block';
+                await waitDelay(100);
+            }
+
+            // Find the container
+            let container = groupElement.querySelector('.rubricItemGroup--rubricItems');
+            
+            const radioOptions = container ? Array.from(container.querySelectorAll('.rubricItem')) : [];
+            
+            // QWERTY order for option letters
+            const QWERTY_LETTERS = "QWERTYUIOPASDFGHJKLZXCVBNM";
+            
+            // First pass: extract all options with their points to determine max points
+            const optionData = [];
+            let maxPoints = 0;
+            
+            radioOptions.forEach((optionElement, index) => {
+                const descEl = optionElement.querySelector('.rubricField-description');
+                const pointsEl = optionElement.querySelector('.rubricField-points');
+                
+                let optionDesc = '';
+                let points = 0;
+                
+                if (descEl) {
+                    optionDesc = extractTextWithSpacing(descEl);
+                    optionDesc = optionDesc.replace(/^Grading comment:\s*/, '').trim();
+                }
+                
+                if (pointsEl) {
+                    const pointsText = pointsEl.textContent?.trim() || '0';
+                    points = parseFloat(pointsText.replace(/[^\d.-]/g, '')) || 0;
+                    maxPoints = Math.max(maxPoints, points);
+                }
+                
+                if (optionDesc && index < QWERTY_LETTERS.length) {
+                    const optionLetter = QWERTY_LETTERS[index];
+                    optionData.push({
+                        letter: optionLetter,
+                        description: optionDesc,
+                        points: points
+                    });
+                }
+            });
+            
+            // Second pass: add credit labels based on points
+            optionData.forEach(option => {
+                let creditLabel = '';
+                if (option.points === maxPoints && maxPoints > 0) {
+                    creditLabel = ' (Full credit)';
+                } else if (option.points > 0 && option.points < maxPoints) {
+                    creditLabel = ' (Partial credit)';
+                } else if (option.points === 0) {
+                    creditLabel = ' (No credit)';
+                }
+                
+                options[option.letter] = option.description + creditLabel;
+            });
+
+            console.log(`📊 Radio options with credit labels:`, options);
+
+            return options;
+        }
+
+        // Auto-expand all for easy viewing
+        window.onload = function() {
+            document.querySelectorAll('button[aria-expanded="false"]').forEach(btn => {
+                btn.click();
+            });
+        };
+    </script>
+</body>
+</html> 

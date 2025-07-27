@@ -120,6 +120,18 @@ class SimpleFeedbackUI {
 
     input.addEventListener('input', () => {
       sendBtn.disabled = input.value.trim().length === 0;
+      
+      // Auto-resize textarea based on content
+      input.style.height = 'auto';
+      input.style.height = Math.min(input.scrollHeight, 170) + 'px'; // Max height of 150px
+    });
+
+    // Handle Enter key to send feedback
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey && !sendBtn.disabled) {
+        e.preventDefault(); // Prevent new line
+        sendBtn.click();
+      }
     });
 
     sendBtn.addEventListener('click', () => {
@@ -178,10 +190,10 @@ class SimpleFeedbackUI {
       .sg-nope-btn{background:#dc3545;color:white;border:none;padding:8px 16px;border-radius:4px;font-weight:600;cursor:pointer;transition:background .2s;margin-right:12px}
       .sg-nope-btn:hover{background:#c82333}
       .sg-feedback-form{padding:12px;border-top:1px solid #1a464d;background:#20545c}
-      .sg-feedback-input{width:100%;padding:8px;border:1px solid #1a464d;border-radius:4px;font-family:inherit;font-size:14px;resize:vertical;margin-bottom:8px;background:white;color:#333}
+      .sg-feedback-input{width:100%;padding:8px;border:1px solid #1a464d;border-radius:4px;font-family:inherit;font-size:14px;resize:none;margin-bottom:8px;background:white;color:#333;min-height:80px;overflow:hidden}
       .sg-feedback-input:focus{outline:none;border-color:#0f3338;box-shadow:0 0 0 2px rgba(15,51,56,.3)}
-      .sg-send-btn{background:#28a745;color:white;border:none;padding:6px 16px;border-radius:4px;font-weight:600;cursor:pointer;transition:background .2s;float:right}
-      .sg-send-btn:hover:not(:disabled){background:#218838}
+      .sg-send-btn{background:#4a7c87;color:white;border:none;padding:6px 16px;border-radius:4px;font-weight:600;cursor:pointer;transition:background .2s;float:right;margin-bottom:8px}
+      .sg-send-btn:hover:not(:disabled){background:#3d6b75}
       .sg-send-btn:disabled{background:#6c757d;cursor:not-allowed;opacity:.6}
       .sg-feedback-sent{text-align:center;color:white;font-weight:600;padding:20px}
     `;
@@ -585,10 +597,16 @@ class ChromeGradingService {
     // QWERTY order for option letters
     const QWERTY_LETTERS = "QWERTYUIOPASDFGHJKLZXCVBNM";
     
-    // Extract each option and assign QWERTY letters
+    // First pass: extract all options with their points to determine max points
+    const optionData: Array<{letter: string, description: string, points: number}> = [];
+    let maxPoints = 0;
+    
     radioOptions.forEach((optionElement, index) => {
       const descEl = optionElement.querySelector('.rubricField-description');
+      const pointsEl = optionElement.querySelector('.rubricField-points');
+      
       let optionDesc = '';
+      let points = 0;
       
       if (descEl) {
         // Extract text with proper spacing for list items
@@ -597,11 +615,37 @@ class ChromeGradingService {
         optionDesc = optionDesc.replace(/^Grading comment:\s*/, '').trim();
       }
       
+      if (pointsEl) {
+        const pointsText = pointsEl.textContent?.trim() || '0';
+        points = parseFloat(pointsText.replace(/[^\d.-]/g, '')) || 0;
+        maxPoints = Math.max(maxPoints, points);
+      }
+      
       if (optionDesc && index < QWERTY_LETTERS.length) {
         const optionLetter = QWERTY_LETTERS[index];
-        options[optionLetter] = optionDesc;
+        optionData.push({
+          letter: optionLetter,
+          description: optionDesc,
+          points: points
+        });
       }
     });
+    
+    // Second pass: add credit labels based on points
+    optionData.forEach(option => {
+      let creditLabel = '';
+      if (option.points === maxPoints && maxPoints > 0) {
+        creditLabel = ' (Full credit)';
+      } else if (option.points > 0 && option.points < maxPoints) {
+        creditLabel = ' (Partial credit)';
+      } else if (option.points === 0) {
+        creditLabel = ' (No credit)';
+      }
+      
+      options[option.letter] = option.description + creditLabel;
+    });
+
+    console.log(`📊 Radio options with credit labels:`, options);
 
     // Collapse the accordion back
     const collapseBtn = groupElement.querySelector('button[aria-expanded="true"]');
