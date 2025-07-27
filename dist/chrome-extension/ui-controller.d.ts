@@ -61,6 +61,7 @@ declare class UIController {
     private findFallbackInjectionPoint;
     /**
      * Create the main AI grading panel with enhanced features
+     * NOTE: Disabled for automatic grading mode
      */
     private createAIPanel;
     /**
@@ -68,7 +69,8 @@ declare class UIController {
      */
     private insertPanelSafely;
     /**
-     * Set up enhanced event listeners with better error handling
+     * Set up enhanced event listeners for the AI panel
+     * NOTE: Disabled for automatic grading mode
      */
     private setupEnhancedEventListeners;
     /**

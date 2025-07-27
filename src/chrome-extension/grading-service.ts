@@ -173,9 +173,9 @@ class SimpleFeedbackUI {
     style.textContent = `
       .supergrader-feedback-box{background:#20545c;border:2px solid #1a464d;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.15);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;overflow:hidden;position:relative;color:white}
       .sg-feedback-content{padding:12px}
-      .sg-combined-text{color:white;line-height:1.4;margin-bottom:0}
+      .sg-combined-text{color:white;line-height:1.4;margin-bottom:0;font-weight:490}
       .sg-feedback-actions{padding:0 12px 12px;display:flex;justify-content:flex-end}
-      .sg-nope-btn{background:#dc3545;color:white;border:none;padding:6px 16px;border-radius:4px;font-weight:600;cursor:pointer;transition:background .2s}
+      .sg-nope-btn{background:#dc3545;color:white;border:none;padding:8px 16px;border-radius:4px;font-weight:600;cursor:pointer;transition:background .2s;margin-right:12px}
       .sg-nope-btn:hover{background:#c82333}
       .sg-feedback-form{padding:12px;border-top:1px solid #1a464d;background:#20545c}
       .sg-feedback-input{width:100%;padding:8px;border:1px solid #1a464d;border-radius:4px;font-family:inherit;font-size:14px;resize:vertical;margin-bottom:8px;background:white;color:#333}

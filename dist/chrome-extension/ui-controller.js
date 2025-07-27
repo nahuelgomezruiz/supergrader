@@ -31,10 +31,15 @@ class UIController {
                 console.error('UIController: Invalid injection point provided');
                 this.findFallbackInjectionPoint();
             }
-            // Create the AI panel
-            this.createAIPanel();
             this.isInitialized = true;
             console.log('UIController: Enhanced UI initialized successfully');
+            // Automatically start grading instead of showing the popup
+            console.log('UIController: Starting automatic grading...');
+            setTimeout(() => {
+                this.startEnhancedGrading().catch(error => {
+                    console.error('UIController: Auto-grading failed:', error);
+                });
+            }, 1000); // Small delay to ensure everything is ready
         }
         catch (error) {
             console.error('UIController: Failed to initialize enhanced UI', error);
@@ -66,69 +71,30 @@ class UIController {
     }
     /**
      * Create the main AI grading panel with enhanced features
+     * NOTE: Disabled for automatic grading mode
      */
     createAIPanel() {
+        /*
         console.log('UIController: Creating enhanced AI grading panel...');
+        
         if (!this.injectionPoint) {
-            console.error('UIController: No injection point available');
-            return;
+          console.error('UIController: No injection point available');
+          return;
         }
+    
         // Remove any existing panel
         const existingPanel = document.getElementById('ai-gradescope-panel');
         if (existingPanel) {
-            existingPanel.remove();
-            console.log('UIController: Removed existing panel');
+          existingPanel.remove();
+          console.log('UIController: Removed existing panel');
         }
+    
         // Create the AI panel with enhanced content
         this.aiPanel = document.createElement('div');
         this.aiPanel.id = 'ai-gradescope-panel';
         this.aiPanel.className = 'ai-grading-panel';
-        // Enhanced panel content with state information
-        const assignmentTypeLabel = this.state?.assignmentType === 'questions' ? 'Question' : 'Assignment';
-        this.aiPanel.innerHTML = `
-      <div class="ai-panel-header">
-        🤖 supergrader
-        <div class="ai-panel-info">
-          ${assignmentTypeLabel} ${this.state?.assignmentId} | Submission ${this.state?.submissionId}
-        </div>
-        <button class="ai-panel-toggle" title="Toggle panel">−</button>
-      </div>
-      <div class="ai-panel-content">
-        <div class="ai-status-container">
-          <div class="ai-status">Ready to assist with grading</div>
-          <div class="ai-connection-status" id="ai-connection-status">
-            <span class="status-indicator"></span>
-            <span class="status-text">Checking connection...</span>
-          </div>
-        </div>
-        <div class="ai-controls">
-          <button class="ai-grade-button" id="ai-grade-button">Start AI Grading</button>
-          <div class="essential-buttons" style="display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
-            <button class="ai-show-data-button" id="ai-show-data-button" style="background: #fd7e14; margin-top: 5px;">🔍 Show Rubric Data</button>
-            <button class="ai-radio-diag-button" id="ai-radio-diag-button" style="background: #20c997; margin-top: 5px;">🎛 Radio Options</button>
-          </div>
-          <div class="ai-options">
-            <label class="ai-checkbox">
-              <input type="checkbox" id="ai-preview-mode"> Preview mode
-            </label>
-          </div>
-        </div>
-        <div class="ai-progress" id="ai-progress" style="display: none;">
-          <div class="progress-bar">
-            <div class="progress-fill" id="progress-fill"></div>
-          </div>
-          <div class="progress-text" id="progress-text">Initializing...</div>
-        </div>
-        <div class="ai-errors" id="ai-errors" style="display: none;"></div>
-      </div>
-    `;
-        // Determine best insertion strategy
-        this.insertPanelSafely();
-        // Add event listeners
-        this.setupEnhancedEventListeners();
-        // Initialize connection status check
-        this.updateConnectionStatus();
-        console.log('UIController: Enhanced panel created successfully');
+        */
+        console.log('UIController: Panel creation disabled - using automatic grading mode');
     }
     /**
      * Safely insert panel into DOM with multiple strategies
@@ -161,102 +127,94 @@ class UIController {
         }
     }
     /**
-     * Set up enhanced event listeners with better error handling
+     * Set up enhanced event listeners for the AI panel
+     * NOTE: Disabled for automatic grading mode
      */
     setupEnhancedEventListeners() {
+        /*
         console.log('UIController: Setting up enhanced event listeners...');
-        if (!this.aiPanel)
-            return;
+        
+        if (!this.aiPanel) {
+          console.error('UIController: Cannot set up event listeners - panel not found');
+          return;
+        }
+    
         try {
-            // Panel toggle with error handling
-            const toggleButton = this.aiPanel.querySelector('.ai-panel-toggle');
-            if (toggleButton) {
-                toggleButton.addEventListener('click', () => {
-                    try {
-                        this.togglePanel();
-                    }
-                    catch (error) {
-                        console.error('UIController: Error toggling panel', error);
-                    }
-                });
-            }
-            // Grade button with enhanced functionality
-            const gradeButton = this.aiPanel.querySelector('#ai-grade-button');
-            if (gradeButton) {
-                gradeButton.addEventListener('click', async () => {
-                    try {
-                        await this.startEnhancedGrading();
-                    }
-                    catch (error) {
-                        console.error('UIController: Error starting grading', error);
-                        this.showError('Failed to start grading process');
-                    }
-                });
-            }
-            // Show rubric data button
-            const showDataBtn = this.aiPanel.querySelector('#ai-show-data-button');
-            if (showDataBtn) {
-                showDataBtn.addEventListener('click', () => {
-                    try {
-                        console.log('🔍 UIController: Show rubric data button clicked');
-                        this.showRubricData();
-                    }
-                    catch (error) {
-                        console.error('UIController: Error showing rubric data', error);
-                        this.showError('Failed to show rubric data');
-                    }
-                });
-            }
-            const radioDiagBtn = this.aiPanel.querySelector('#ai-radio-diag-button');
-            if (radioDiagBtn) {
-                radioDiagBtn.addEventListener('click', () => {
-                    if (typeof window.showRadioDiag === 'function') {
-                        window.showRadioDiag();
-                    }
-                    else {
-                        this.showError('Radio diagnostic unavailable', 'info');
-                    }
-                });
-            }
-            // Preview mode checkbox
-            const previewCheckbox = this.aiPanel.querySelector('#ai-preview-mode');
-            if (previewCheckbox) {
-                previewCheckbox.addEventListener('change', (e) => {
-                    const target = e.target;
-                    console.log('UIController: Preview mode toggled', target.checked);
-                    // Store preference
-                    if (chrome.storage) {
-                        chrome.storage.sync.set({ previewMode: target.checked });
-                    }
-                });
-            }
-            console.log('UIController: Enhanced event listeners set up successfully');
+          // Panel toggle functionality
+          const toggleButton = this.aiPanel.querySelector('.ai-panel-toggle') as HTMLButtonElement;
+          if (toggleButton) {
+            toggleButton.addEventListener('click', () => {
+              try {
+                this.togglePanel();
+              } catch (error) {
+                console.error('UIController: Error toggling panel', error);
+              }
+            });
+          }
+    
+          // Grade button with enhanced functionality
+          const gradeButton = this.aiPanel.querySelector('#ai-grade-button') as HTMLButtonElement;
+          if (gradeButton) {
+            gradeButton.addEventListener('click', async () => {
+              try {
+                await this.startEnhancedGrading();
+              } catch (error) {
+                console.error('UIController: Error starting grading', error);
+                this.showError('Failed to start grading process');
+              }
+            });
+          }
+    
+          // Show rubric data button
+          const showDataBtn = this.aiPanel.querySelector('#ai-show-data-button') as HTMLButtonElement;
+          if (showDataBtn) {
+            showDataBtn.addEventListener('click', () => {
+              try {
+                console.log('🔍 UIController: Show rubric data button clicked');
+                this.showRubricData();
+              } catch (error) {
+                console.error('UIController: Error showing rubric data', error);
+                this.showError('Failed to show rubric data');
+              }
+            });
+          }
+    
+          const radioDiagBtn = this.aiPanel.querySelector('#ai-radio-diag-button') as HTMLButtonElement;
+          if (radioDiagBtn) {
+            radioDiagBtn.addEventListener('click', () => {
+              if (typeof (window as any).showRadioDiag === 'function') {
+                (window as any).showRadioDiag();
+              } else {
+                this.showError('Radio diagnostic unavailable', 'info');
+              }
+            });
+          }
+    
+          // Preview mode checkbox
+          const previewCheckbox = this.aiPanel.querySelector('#ai-preview-mode') as HTMLInputElement;
+          if (previewCheckbox) {
+            previewCheckbox.addEventListener('change', (e: Event) => {
+              const target = e.target as HTMLInputElement;
+              console.log('UIController: Preview mode toggled', target.checked);
+              // Store preference
+              if (chrome.storage) {
+                chrome.storage.sync.set({ previewMode: target.checked });
+              }
+            });
+          }
+          
+          console.log('UIController: Enhanced event listeners set up successfully');
+        } catch (error) {
+          console.error('UIController: Failed to set up event listeners', error);
         }
-        catch (error) {
-            console.error('UIController: Failed to set up event listeners', error);
-        }
+        */
+        console.log('UIController: Event listeners disabled - using automatic grading mode');
     }
     /**
      * Enhanced grading process with backend integration
      */
     async startEnhancedGrading() {
-        console.log('UIController: Starting enhanced grading process...');
-        if (!this.aiPanel)
-            return;
-        const button = this.aiPanel.querySelector('#ai-grade-button');
-        const progress = this.aiPanel.querySelector('#ai-progress');
-        const progressFill = this.aiPanel.querySelector('#progress-fill');
-        const progressText = this.aiPanel.querySelector('#progress-text');
-        if (!button || !progress) {
-            console.error('UIController: Required UI elements not found for grading');
-            return;
-        }
-        // Update UI state
-        button.disabled = true;
-        button.textContent = 'Initializing...';
-        progress.style.display = 'block';
-        if (progressText)
-            progressText.textContent = 'Initializing grading service...';
+        console.log('UIController: Starting automatic grading process...');
         try {
             // Wait for ChromeGradingService to be available with retry mechanism
             const ChromeGradingService = await this.waitForGradingService();
@@ -264,33 +222,15 @@ class UIController {
                 throw new Error('ChromeGradingService failed to load after retries');
             }
             const gradingService = new ChromeGradingService();
-            // Reset UI
-            if (progressText)
-                progressText.textContent = 'Starting grading...';
-            if (progressFill)
-                progressFill.style.width = '0%';
+            console.log('UIController: Starting automatic grading...');
             // Start grading with progress tracking
             await gradingService.gradeSubmission((event) => {
                 console.log('UIController: Grading event:', event);
                 if (event.type === 'partial_result') {
-                    // Update progress
-                    const progress = event.progress || 0;
-                    if (progressFill)
-                        progressFill.style.width = `${progress}%`;
-                    if (progressText)
-                        progressText.textContent = `Grading item ${event.rubric_item_id}...`;
+                    console.log(`UIController: Graded item ${event.rubric_item_id} with ${(event.decision?.confidence * 100).toFixed(1)}% confidence`);
                 }
                 else if (event.type === 'job_complete') {
-                    // Grading completed
-                    if (progressFill)
-                        progressFill.style.width = '100%';
-                    if (progressText)
-                        progressText.textContent = 'Grading completed!';
-                    setTimeout(() => {
-                        button.disabled = false;
-                        button.textContent = 'Grade Assignment';
-                        progress.style.display = 'none';
-                    }, 2000);
+                    console.log('UIController: Automatic grading completed successfully!');
                 }
                 else if (event.type === 'error') {
                     throw new Error(event.error || 'Unknown grading error');
@@ -298,13 +238,8 @@ class UIController {
             });
         }
         catch (error) {
-            console.error('UIController: Grading error', error);
-            // Reset UI on error
-            button.disabled = false;
-            button.textContent = 'Grade Assignment';
-            progress.style.display = 'none';
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            this.showError(`Grading failed: ${errorMessage}`);
+            console.error('UIController: Automatic grading error', error);
+            // Could show a minimal error notification here if needed
         }
     }
     /**
