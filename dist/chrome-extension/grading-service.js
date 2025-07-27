@@ -60,24 +60,18 @@ class SimpleFeedbackUI {
     createBox(cfg) {
         const div = document.createElement('div');
         div.className = 'supergrader-feedback-box';
-        const confCls = cfg.confidence >= 0.8 ? 'high' : cfg.confidence >= 0.6 ? 'medium' : 'low';
+        // Combine decision and comment into single text
+        const combinedText = `${this.formatDecision(cfg.decision)}. ${cfg.comment}`;
         div.innerHTML = `
-      <div class="sg-feedback-header">
-        <span class="sg-confidence ${confCls}">${(cfg.confidence * 100).toFixed(0)}% confidence</span>
-        <button class="sg-close-btn" aria-label="Close">×</button>
-      </div>
       <div class="sg-feedback-content">
-        <div class="sg-decision"><strong>Decision:</strong> ${this.formatDecision(cfg.decision)}</div>
-        <div class="sg-comment"><strong>Comment:</strong><p>${this.escape(cfg.comment)}</p></div>
+        <div class="sg-combined-text">${this.escape(combinedText)}</div>
       </div>
       <div class="sg-feedback-actions"><button class="sg-nope-btn">NOPE</button></div>
       <div class="sg-feedback-form" style="display:none;">
         <textarea class="sg-feedback-input" rows="3" placeholder="I disagree because..."></textarea>
         <button class="sg-send-btn" disabled>Send</button>
       </div>`;
-        // events
-        const closeBtn = div.querySelector('.sg-close-btn');
-        closeBtn?.addEventListener('click', () => this.removeSuggestion(cfg.rubricItemId));
+        // events (remove close button event listener)
         const nopeBtn = div.querySelector('.sg-nope-btn');
         const form = div.querySelector('.sg-feedback-form');
         const input = div.querySelector('.sg-feedback-input');
@@ -123,9 +117,9 @@ class SimpleFeedbackUI {
     }
     formatDecision(decision) {
         if (decision === 'check')
-            return '✓ Check';
+            return 'Check';
         if (decision === 'uncheck')
-            return '✗ Uncheck';
+            return 'Uncheck';
         return decision;
     }
     escape(txt) {
@@ -139,27 +133,19 @@ class SimpleFeedbackUI {
         const style = document.createElement('style');
         style.id = 'supergrader-feedback-styles';
         style.textContent = `
-      .supergrader-feedback-box{background:white;border:2px solid #0066cc;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.15);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;overflow:hidden;position:relative}
-      .sg-feedback-header{background:#f0f7ff;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e0e0e0}
-      .sg-confidence{font-size:12px;font-weight:600;padding:2px 8px;border-radius:4px}
-      .sg-confidence.high{background:#d4edda;color:#155724}
-      .sg-confidence.medium{background:#fff3cd;color:#856404}
-      .sg-confidence.low{background:#f8d7da;color:#721c24}
-      .sg-close-btn{background:none;border:none;font-size:20px;cursor:pointer;color:#666;padding:0;width:24px;height:24px;display:flex;align-items:center;justify-content:center}
+      .supergrader-feedback-box{background:#20545c;border:2px solid #1a464d;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.15);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;overflow:hidden;position:relative;color:white}
       .sg-feedback-content{padding:12px}
-      .sg-decision{margin-bottom:8px;color:#333}
-      .sg-comment{color:#555}
-      .sg-comment p{margin:4px 0 0 0}
+      .sg-combined-text{color:white;line-height:1.4;margin-bottom:0}
       .sg-feedback-actions{padding:0 12px 12px;display:flex;justify-content:flex-end}
       .sg-nope-btn{background:#dc3545;color:white;border:none;padding:6px 16px;border-radius:4px;font-weight:600;cursor:pointer;transition:background .2s}
       .sg-nope-btn:hover{background:#c82333}
-      .sg-feedback-form{padding:12px;border-top:1px solid #e0e0e0;background:#f8f9fa}
-      .sg-feedback-input{width:100%;padding:8px;border:1px solid #ced4da;border-radius:4px;font-family:inherit;font-size:14px;resize:vertical;margin-bottom:8px}
-      .sg-feedback-input:focus{outline:none;border-color:#0066cc;box-shadow:0 0 0 2px rgba(0,102,204,.1)}
-      .sg-send-btn{background:#0066cc;color:white;border:none;padding:6px 16px;border-radius:4px;font-weight:600;cursor:pointer;transition:background .2s;float:right}
-      .sg-send-btn:hover:not(:disabled){background:#0052a3}
+      .sg-feedback-form{padding:12px;border-top:1px solid #1a464d;background:#20545c}
+      .sg-feedback-input{width:100%;padding:8px;border:1px solid #1a464d;border-radius:4px;font-family:inherit;font-size:14px;resize:vertical;margin-bottom:8px;background:white;color:#333}
+      .sg-feedback-input:focus{outline:none;border-color:#0f3338;box-shadow:0 0 0 2px rgba(15,51,56,.3)}
+      .sg-send-btn{background:#28a745;color:white;border:none;padding:6px 16px;border-radius:4px;font-weight:600;cursor:pointer;transition:background .2s;float:right}
+      .sg-send-btn:hover:not(:disabled){background:#218838}
       .sg-send-btn:disabled{background:#6c757d;cursor:not-allowed;opacity:.6}
-      .sg-feedback-sent{text-align:center;color:#28a745;font-weight:600;padding:20px}
+      .sg-feedback-sent{text-align:center;color:white;font-weight:600;padding:20px}
     `;
         document.head.appendChild(style);
     }
