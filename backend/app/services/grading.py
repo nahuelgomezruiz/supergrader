@@ -14,6 +14,7 @@ from app.models import (
 from app.services.llm.service import LLMService
 from app.services.preprocessing import PreprocessingService
 from app.services.rubric_loader import RubricLoaderService
+from app.services.caveat_service import CaveatService
 
 
 class GradingService:
@@ -23,6 +24,7 @@ class GradingService:
         self.llm_service = LLMService()
         self.preprocessing_service = PreprocessingService()
         self.rubric_loader = RubricLoaderService()
+        self.caveat_service = CaveatService()
     
     def _estimate_batch_load(self, batch_size: int) -> Dict[str, int]:
         """Estimate the API load for a batch."""
@@ -170,6 +172,13 @@ class GradingService:
         # Format the section context
         section_context = self.rubric_loader.format_section_context(section_items) if section_items else None
         
+        # Search for relevant caveats
+        relevant_caveats = await self.caveat_service.search_caveats(
+            rubric_question=rubric_item.description,
+            top_k=3,
+            similarity_threshold=0.7
+        )
+        
         # Launch parallel LLM evaluations
         tasks = []
         for _ in range(settings.parallel_llm_calls):
@@ -179,7 +188,8 @@ class GradingService:
                 rubric_points=rubric_item.points,
                 rubric_options=rubric_item.options,
                 source_files=processed_files,
-                section_context=section_context
+                section_context=section_context,
+                caveats=relevant_caveats  # Pass caveats to LLM
             )
             tasks.append(task)
         

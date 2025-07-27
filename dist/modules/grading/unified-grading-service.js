@@ -58,16 +58,17 @@ export class UnifiedGradingService {
         if (radioOptions.length === 0) {
             radioOptions = Array.from(groupElement.querySelectorAll('.rubricItemGroup--rubricItems .rubricItem'));
         }
-        // Extract each option
-        radioOptions.forEach((optionElement) => {
+        // QWERTY order for option letters
+        const QWERTY_LETTERS = "QWERTYUIOPASDFGHJKLZXCVBNM";
+        // Extract each option and assign QWERTY letters
+        radioOptions.forEach((optionElement, index) => {
             const descEl = optionElement.querySelector('.rubricField-description');
             let optionDesc = descEl?.textContent?.trim() || '';
             // Clean up the description
             optionDesc = optionDesc.replace(/^Grading comment:\s*/, '').trim();
-            const ptsEl = optionElement.querySelector('.rubricField-points');
-            const ptsText = ptsEl?.textContent?.trim() || '0 pts';
-            if (optionDesc) {
-                options[optionDesc] = ptsText;
+            if (optionDesc && index < QWERTY_LETTERS.length) {
+                const optionLetter = QWERTY_LETTERS[index];
+                options[optionLetter] = optionDesc;
             }
         });
         // Collapse the accordion back
@@ -213,10 +214,14 @@ export class UnifiedGradingService {
             }
             backendItems.push(backendItem);
         }
-        // Filter out zero-point checkbox items (they don't contribute to grade and are often just for human graders)
+        // Filter out zero-point checkbox items and bonus point questions (they don't contribute to grade and are often just for human graders)
         const filteredItems = backendItems.filter(item => {
             if (item.type === 'CHECKBOX' && item.points === 0) {
                 console.log(`🚫 Filtering out zero-point checkbox: ${item.id} - "${item.description}"`);
+                return false;
+            }
+            if (item.description && item.description.toLowerCase().includes('(bonus point)')) {
+                console.log(`🚫 Filtering out bonus point question: ${item.id} - "${item.description}"`);
                 return false;
             }
             return true;

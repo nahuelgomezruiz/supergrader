@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Feedback System Frontend Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .rubric-item {
+            border: 2px solid #ddd;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            position: relative;
+            background: white;
+        }
+        
+        .rubric-item h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        
+        .rubric-item p {
+            margin: 5px 0;
+            color: #666;
+        }
+        
+        .test-button {
+            background: #007cba;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        
+        .test-button:hover {
+            background: #005a87;
+        }
+        
+        .student-assignment {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        
+        .results {
+            background: #e8f5e8;
+            border: 1px solid #28a745;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        
+        .error {
+            background: #f8d7da;
+            border: 1px solid #dc3545;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Feedback System Frontend Test</h1>
+    
+    <div class="test-container">
+        <h2>Test Setup</h2>
+        <p>This page simulates a Gradescope-like interface to test the feedback UI system.</p>
+        <button class="test-button" onclick="initializeFeedbackSystem()">Initialize Feedback System</button>
+        <button class="test-button" onclick="testFeedbackUI()">Test Feedback Display</button>
+        <button class="test-button" onclick="clearAllFeedback()">Clear All Feedback</button>
+    </div>
+
+    <div class="test-container">
+        <h2>Sample Student Assignment</h2>
+        <div class="student-assignment" id="student-assignment">
+def calculate_grade(scores):
+    total = 0
+    for score in scores:
+        total += score
+    return total / len(scores)
+
+# Test the function
+student_scores = [85, 92, 78, 96, 88]
+final_grade = calculate_grade(student_scores)
+print(f"Final grade: {final_grade}")
+        </div>
+    </div>
+
+    <div class="test-container">
+        <h2>Rubric Items</h2>
+        
+        <div class="rubric-item" id="rubric-item-1" data-rubric-id="1">
+            <h3>Error Handling (5 points)</h3>
+            <p>Does the code properly handle edge cases and potential errors?</p>
+            <input type="checkbox" id="checkbox-1"> Check if implemented correctly
+        </div>
+        
+        <div class="rubric-item" id="rubric-item-2" data-rubric-id="2">
+            <h3>Code Quality (3 points)</h3>
+            <p>Is the code well-structured and readable?</p>
+            <input type="radio" name="quality-2" value="excellent"> Excellent
+            <input type="radio" name="quality-2" value="good"> Good
+            <input type="radio" name="quality-2" value="poor"> Poor
+        </div>
+        
+        <div class="rubric-item" id="rubric-item-3" data-rubric-id="3">
+            <h3>Algorithm Correctness (10 points)</h3>
+            <p>Does the algorithm produce the correct output for all test cases?</p>
+            <input type="checkbox" id="checkbox-3"> Check if correct
+        </div>
+    </div>
+
+    <div class="test-container">
+        <h2>Test Results</h2>
+        <div id="results" class="results" style="display: none;">
+            <h3>✅ Test Results</h3>
+            <ul id="results-list"></ul>
+        </div>
+    </div>
+
+    <!-- Include the feedback UI module -->
+    <script type="module">
+        // Mock Chrome storage API for testing
+        window.chrome = {
+            storage: {
+                sync: {
+                    get: async (keys) => {
+                        // Mock settings
+                        return {
+                            autoApplyHighConfidence: true,
+                            confidenceThreshold: 0.8
+                        };
+                    }
+                }
+            }
+        };
+
+        // Import and initialize the feedback UI
+        let feedbackUI;
+        let testResults = [];
+
+        // Mock FeedbackUI implementation for testing
+        class MockFeedbackUI {
+            constructor() {
+                this.feedbackBoxes = new Map();
+                this.onFeedbackSubmit = null;
+                this.injectStyles();
+            }
+
+            onFeedback(callback) {
+                this.onFeedbackSubmit = callback;
+            }
+
+            displaySuggestion(config) {
+                console.log('📍 Displaying suggestion:', config);
+                
+                const element = document.getElementById(`rubric-item-${config.rubricItemId}`);
+                if (!element) {
+                    console.error('❌ Rubric element not found:', config.rubricItemId);
+                    return;
+                }
+
+                // Create feedback box
+                const feedbackBox = this.createFeedbackBox(config);
+                
+                // Position it relative to the rubric item
+                this.positionFeedbackBox(feedbackBox, element);
+                
+                // Add to DOM
+                document.body.appendChild(feedbackBox);
+                
+                // Store reference
+                this.feedbackBoxes.set(config.rubricItemId, feedbackBox);
+
+                // Auto-apply if high confidence
+                if (config.confidence >= 0.8 && config.decision === 'check') {
+                    const checkbox = element.querySelector('input[type="checkbox"]');
+                    if (checkbox) {
+                        checkbox.checked = true;
+                        console.log('✅ Auto-applied high confidence decision');
+                    }
+                }
+
+                testResults.push(`✅ Displayed suggestion for item ${config.rubricItemId} with ${(config.confidence * 100).toFixed(0)}% confidence`);
+                updateResults();
+            }
+
+            createFeedbackBox(config) {
+                const box = document.createElement('div');
+                box.className = 'supergrader-feedback-box';
+                box.dataset.rubricItemId = config.rubricItemId;
+
+                const confidenceClass = config.confidence >= 0.8 ? 'high' : 
+                                      config.confidence >= 0.6 ? 'medium' : 'low';
+
+                box.innerHTML = `
+                    <div class="sg-feedback-header">
+                        <span class="sg-confidence ${confidenceClass}">
+                            ${(config.confidence * 100).toFixed(0)}% confidence
+                        </span>
+                        <button class="sg-close-btn" aria-label="Close">×</button>
+                    </div>
+                    <div class="sg-feedback-content">
+                        <div class="sg-decision">
+                            <strong>Decision:</strong> ${this.formatDecision(config.decision)}
+                        </div>
+                        <div class="sg-comment">
+                            <strong>Comment:</strong>
+                            <p>${this.escapeHtml(config.comment)}</p>
+                        </div>
+                    </div>
+                    <div class="sg-feedback-actions">
+                        <button class="sg-nope-btn">NOPE</button>
+                    </div>
+                    <div class="sg-feedback-form" style="display: none;">
+                        <textarea 
+                            class="sg-feedback-input" 
+                            placeholder="I disagree because..."
+                            rows="3"
+                        ></textarea>
+                        <button class="sg-send-btn" disabled>Send</button>
+                    </div>
+                `;
+
+                this.attachEventListeners(box, config);
+                return box;
+            }
+
+            attachEventListeners(box, config) {
+                // Close button
+                const closeBtn = box.querySelector('.sg-close-btn');
+                closeBtn?.addEventListener('click', () => {
+                    this.removeSuggestion(config.rubricItemId);
+                });
+
+                // NOPE button
+                const nopeBtn = box.querySelector('.sg-nope-btn');
+                const feedbackForm = box.querySelector('.sg-feedback-form');
+                const feedbackInput = box.querySelector('.sg-feedback-input');
+                const sendBtn = box.querySelector('.sg-send-btn');
+
+                nopeBtn?.addEventListener('click', () => {
+                    feedbackForm.style.display = 'block';
+                    nopeBtn.style.display = 'none';
+                    feedbackInput.focus();
+                    testResults.push(`📝 User clicked NOPE on item ${config.rubricItemId}`);
+                    updateResults();
+                });
+
+                // Enable send button on input
+                feedbackInput?.addEventListener('input', () => {
+                    sendBtn.disabled = feedbackInput.value.trim().length === 0;
+                });
+
+                // Send feedback
+                sendBtn?.addEventListener('click', () => {
+                    if (this.onFeedbackSubmit && feedbackInput.value.trim()) {
+                        const feedbackData = {
+                            rubricItemId: config.rubricItemId,
+                            rubricQuestion: this.extractRubricQuestion(config.element || document.getElementById(`rubric-item-${config.rubricItemId}`)),
+                            studentAssignment: this.extractStudentAssignment(),
+                            originalDecision: `${config.decision} - ${config.comment}`,
+                            userFeedback: feedbackInput.value.trim()
+                        };
+
+                        this.onFeedbackSubmit(feedbackData);
+                        
+                        feedbackForm.innerHTML = '<div class="sg-feedback-sent">✓ Feedback sent!</div>';
+                        setTimeout(() => {
+                            this.removeSuggestion(config.rubricItemId);
+                        }, 2000);
+
+                        testResults.push(`📤 Submitted feedback for item ${config.rubricItemId}`);
+                        updateResults();
+                    }
+                });
+            }
+
+            positionFeedbackBox(box, element) {
+                const rect = element.getBoundingClientRect();
+                box.style.position = 'absolute';
+                box.style.top = (rect.top + window.scrollY) + 'px';
+                box.style.left = (rect.right + 10) + 'px';
+                box.style.zIndex = '9999';
+            }
+
+            removeSuggestion(rubricItemId) {
+                const box = this.feedbackBoxes.get(rubricItemId);
+                if (box) {
+                    box.remove();
+                    this.feedbackBoxes.delete(rubricItemId);
+                    testResults.push(`🗑️ Removed suggestion for item ${rubricItemId}`);
+                    updateResults();
+                }
+            }
+
+            clearAllSuggestions() {
+                for (const [id, box] of this.feedbackBoxes) {
+                    box.remove();
+                }
+                this.feedbackBoxes.clear();
+                testResults.push('🧹 Cleared all suggestions');
+                updateResults();
+            }
+
+            extractRubricQuestion(element) {
+                return element?.querySelector('p')?.textContent || 'Unknown question';
+            }
+
+            extractStudentAssignment() {
+                return document.getElementById('student-assignment')?.textContent || '';
+            }
+
+            formatDecision(decision) {
+                return decision === 'check' ? '✓ Check' : decision === 'uncheck' ? '✗ Uncheck' : decision;
+            }
+
+            escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+
+            injectStyles() {
+                if (document.getElementById('supergrader-feedback-styles')) return;
+
+                const style = document.createElement('style');
+                style.id = 'supergrader-feedback-styles';
+                style.textContent = `
+                    .supergrader-feedback-box {
+                        background: white;
+                        border: 2px solid #007cba;
+                        border-radius: 8px;
+                        padding: 12px;
+                        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                        font-size: 14px;
+                        line-height: 1.4;
+                        max-width: 350px;
+                        min-width: 280px;
+                    }
+
+                    .sg-feedback-header {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        margin-bottom: 8px;
+                        padding-bottom: 8px;
+                        border-bottom: 1px solid #e0e0e0;
+                    }
+
+                    .sg-confidence {
+                        font-weight: 600;
+                        padding: 2px 8px;
+                        border-radius: 12px;
+                        font-size: 12px;
+                    }
+
+                    .sg-confidence.high { background: #d4edda; color: #155724; }
+                    .sg-confidence.medium { background: #fff3cd; color: #856404; }
+                    .sg-confidence.low { background: #f8d7da; color: #721c24; }
+
+                    .sg-close-btn {
+                        background: none;
+                        border: none;
+                        font-size: 18px;
+                        cursor: pointer;
+                        color: #666;
+                        padding: 0;
+                        width: 20px;
+                        height: 20px;
+                    }
+
+                    .sg-close-btn:hover { color: #000; }
+
+                    .sg-feedback-content {
+                        margin: 8px 0;
+                    }
+
+                    .sg-decision {
+                        margin-bottom: 8px;
+                        font-size: 13px;
+                    }
+
+                    .sg-comment p {
+                        margin: 4px 0;
+                        color: #333;
+                        font-size: 13px;
+                    }
+
+                    .sg-feedback-actions {
+                        margin-top: 12px;
+                        text-align: center;
+                    }
+
+                    .sg-nope-btn {
+                        background: #dc3545;
+                        color: white;
+                        border: none;
+                        padding: 6px 16px;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-weight: 600;
+                        font-size: 12px;
+                    }
+
+                    .sg-nope-btn:hover { background: #c82333; }
+
+                    .sg-feedback-form {
+                        margin-top: 12px;
+                        padding-top: 12px;
+                        border-top: 1px solid #e0e0e0;
+                    }
+
+                    .sg-feedback-input {
+                        width: 100%;
+                        border: 1px solid #ddd;
+                        border-radius: 4px;
+                        padding: 8px;
+                        font-size: 13px;
+                        resize: vertical;
+                        box-sizing: border-box;
+                    }
+
+                    .sg-send-btn {
+                        background: #28a745;
+                        color: white;
+                        border: none;
+                        padding: 6px 16px;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 12px;
+                        margin-top: 8px;
+                    }
+
+                    .sg-send-btn:disabled {
+                        background: #6c757d;
+                        cursor: not-allowed;
+                    }
+
+                    .sg-send-btn:not(:disabled):hover { background: #218838; }
+
+                    .sg-feedback-sent {
+                        color: #28a745;
+                        font-weight: 600;
+                        text-align: center;
+                        padding: 8px;
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+        }
+
+        // Global functions for testing
+        window.initializeFeedbackSystem = function() {
+            feedbackUI = new MockFeedbackUI();
+            
+            // Set up feedback handler
+            feedbackUI.onFeedback(async (feedback) => {
+                console.log('📤 Submitting feedback:', feedback);
+                testResults.push(`📤 Feedback submitted: ${feedback.userFeedback.substring(0, 50)}...`);
+                updateResults();
+                
+                // Simulate API call
+                try {
+                    const response = await fetch('http://localhost:8000/api/v1/feedback', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(feedback)
+                    });
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        testResults.push(`✅ Backend processed feedback, caveat ID: ${result.caveat_id}`);
+                    } else {
+                        testResults.push(`❌ Backend error: ${response.status}`);
+                    }
+                } catch (error) {
+                    testResults.push(`⚠️ Network error (server not running?): ${error.message}`);
+                }
+                updateResults();
+            });
+            
+            testResults.push('✅ Feedback system initialized');
+            updateResults();
+        };
+
+        window.testFeedbackUI = function() {
+            if (!feedbackUI) {
+                alert('Please initialize the feedback system first');
+                return;
+            }
+
+            // Test different suggestions
+            const testSuggestions = [
+                {
+                    rubricItemId: '1',
+                    comment: 'The code lacks proper error handling for division by zero and empty arrays.',
+                    decision: 'uncheck',
+                    confidence: 0.85,
+                    element: document.getElementById('rubric-item-1')
+                },
+                {
+                    rubricItemId: '2',
+                    comment: 'The code is well-structured with clear variable names and good formatting.',
+                    decision: 'excellent',
+                    confidence: 0.92,
+                    element: document.getElementById('rubric-item-2')
+                },
+                {
+                    rubricItemId: '3',
+                    comment: 'The algorithm correctly calculates the average but should handle edge cases.',
+                    decision: 'check',
+                    confidence: 0.78,
+                    element: document.getElementById('rubric-item-3')
+                }
+            ];
+
+            testSuggestions.forEach((suggestion, index) => {
+                setTimeout(() => {
+                    feedbackUI.displaySuggestion(suggestion);
+                }, index * 500);
+            });
+        };
+
+        window.clearAllFeedback = function() {
+            if (feedbackUI) {
+                feedbackUI.clearAllSuggestions();
+            }
+        };
+
+        function updateResults() {
+            const resultsDiv = document.getElementById('results');
+            const resultsList = document.getElementById('results-list');
+            
+            resultsDiv.style.display = 'block';
+            resultsList.innerHTML = testResults.map(result => `<li>${result}</li>`).join('');
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('🚀 Frontend test page loaded');
+        });
+    </script>
+</body>
+</html> 

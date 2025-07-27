@@ -2,6 +2,168 @@
 // Standalone grading service for Chrome extension
 // This version doesn't use ES6 imports to avoid module issues
 console.log('supergrader: Grading service loaded');
+class SimpleFeedbackUI {
+    constructor() {
+        this.feedbackBoxes = new Map();
+        this.injectStyles();
+    }
+    onFeedback(cb) {
+        this.onFeedbackSubmit = cb;
+    }
+    clearAllSuggestions() {
+        this.feedbackBoxes.forEach((el) => el.remove());
+        this.feedbackBoxes.clear();
+    }
+    displaySuggestion(cfg) {
+        this.removeSuggestion(cfg.rubricItemId);
+        const box = this.createBox(cfg);
+        // Find the rubric editor container (right panel)
+        const doc = cfg.element.ownerDocument || document;
+        const rubricEditor = doc.querySelector('.rubricEditor');
+        if (!rubricEditor) {
+            console.error('SimpleFeedbackUI: Could not find .rubricEditor container');
+            return;
+        }
+        // Find the specific rubric entry container for this item
+        // It could be a .rubricEntry or within a .rubricEntryGroupBundle
+        let insertTarget = cfg.element.closest('.rubricEntry');
+        if (!insertTarget) {
+            // Try finding the parent group bundle
+            insertTarget = cfg.element.closest('.rubricEntryGroupBundle');
+        }
+        if (!insertTarget) {
+            console.error('SimpleFeedbackUI: Could not find insertion target for item', cfg.rubricItemId);
+            return;
+        }
+        // For group bundles, we want to insert after the entire bundle
+        const targetContainer = insertTarget.closest('.rubricEntryGroupBundle') || insertTarget.closest('.rubricEntryDragContainer');
+        if (!targetContainer) {
+            console.error('SimpleFeedbackUI: Could not find container for item', cfg.rubricItemId);
+            return;
+        }
+        // Insert the box right after the container
+        targetContainer.insertAdjacentElement('afterend', box);
+        // Style the box to match the rubric editor width and spacing
+        box.style.margin = '8px 0';
+        box.style.width = 'calc(100% - 16px)';
+        box.style.marginLeft = '8px';
+        box.style.marginRight = '8px';
+        this.feedbackBoxes.set(cfg.rubricItemId, box);
+    }
+    removeSuggestion(id) {
+        const el = this.feedbackBoxes.get(id);
+        if (el) {
+            el.remove();
+            this.feedbackBoxes.delete(id);
+        }
+    }
+    createBox(cfg) {
+        const div = document.createElement('div');
+        div.className = 'supergrader-feedback-box';
+        const confCls = cfg.confidence >= 0.8 ? 'high' : cfg.confidence >= 0.6 ? 'medium' : 'low';
+        div.innerHTML = `
+      <div class="sg-feedback-header">
+        <span class="sg-confidence ${confCls}">${(cfg.confidence * 100).toFixed(0)}% confidence</span>
+        <button class="sg-close-btn" aria-label="Close">×</button>
+      </div>
+      <div class="sg-feedback-content">
+        <div class="sg-decision"><strong>Decision:</strong> ${this.formatDecision(cfg.decision)}</div>
+        <div class="sg-comment"><strong>Comment:</strong><p>${this.escape(cfg.comment)}</p></div>
+      </div>
+      <div class="sg-feedback-actions"><button class="sg-nope-btn">NOPE</button></div>
+      <div class="sg-feedback-form" style="display:none;">
+        <textarea class="sg-feedback-input" rows="3" placeholder="I disagree because..."></textarea>
+        <button class="sg-send-btn" disabled>Send</button>
+      </div>`;
+        // events
+        const closeBtn = div.querySelector('.sg-close-btn');
+        closeBtn?.addEventListener('click', () => this.removeSuggestion(cfg.rubricItemId));
+        const nopeBtn = div.querySelector('.sg-nope-btn');
+        const form = div.querySelector('.sg-feedback-form');
+        const input = div.querySelector('.sg-feedback-input');
+        const sendBtn = div.querySelector('.sg-send-btn');
+        nopeBtn?.addEventListener('click', () => {
+            form.style.display = 'block';
+            nopeBtn.style.display = 'none';
+            input.focus();
+        });
+        input.addEventListener('input', () => {
+            sendBtn.disabled = input.value.trim().length === 0;
+        });
+        sendBtn.addEventListener('click', () => {
+            if (!this.onFeedbackSubmit || !input.value.trim())
+                return;
+            const rubricQuestion = this.extractRubricQuestion(cfg.element);
+            const studentAssignment = this.extractStudentAnswer(cfg.element.ownerDocument || document);
+            this.onFeedbackSubmit({
+                rubricItemId: cfg.rubricItemId,
+                rubricQuestion,
+                studentAssignment,
+                originalDecision: `${cfg.decision} - ${cfg.comment}`,
+                userFeedback: input.value.trim()
+            });
+            form.innerHTML = '<div class="sg-feedback-sent">✓ Feedback sent!</div>';
+            setTimeout(() => this.removeSuggestion(cfg.rubricItemId), 2000);
+        });
+        return div;
+    }
+    extractRubricQuestion(el) {
+        const desc = el.querySelector('.rubricField-description');
+        return desc?.textContent?.trim() || el.textContent?.trim() || '';
+    }
+    extractStudentAnswer(doc) {
+        const codeEls = doc.querySelectorAll('.submission-file-content, .hljs, pre code');
+        if (codeEls.length)
+            return Array.from(codeEls).map(e => e.textContent?.trim() || '').join('\n\n');
+        const textEls = doc.querySelectorAll('.submission-text, .answer-text');
+        if (textEls.length)
+            return Array.from(textEls).map(e => e.textContent?.trim() || '').join('\n\n');
+        const cont = doc.querySelector('.submission-container, .student-submission');
+        return cont?.textContent?.trim() || 'Unable to extract student submission';
+    }
+    formatDecision(decision) {
+        if (decision === 'check')
+            return '✓ Check';
+        if (decision === 'uncheck')
+            return '✗ Uncheck';
+        return decision;
+    }
+    escape(txt) {
+        const d = document.createElement('div');
+        d.textContent = txt;
+        return d.innerHTML;
+    }
+    injectStyles() {
+        if (document.getElementById('supergrader-feedback-styles'))
+            return;
+        const style = document.createElement('style');
+        style.id = 'supergrader-feedback-styles';
+        style.textContent = `
+      .supergrader-feedback-box{background:white;border:2px solid #0066cc;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.15);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;overflow:hidden;position:relative}
+      .sg-feedback-header{background:#f0f7ff;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e0e0e0}
+      .sg-confidence{font-size:12px;font-weight:600;padding:2px 8px;border-radius:4px}
+      .sg-confidence.high{background:#d4edda;color:#155724}
+      .sg-confidence.medium{background:#fff3cd;color:#856404}
+      .sg-confidence.low{background:#f8d7da;color:#721c24}
+      .sg-close-btn{background:none;border:none;font-size:20px;cursor:pointer;color:#666;padding:0;width:24px;height:24px;display:flex;align-items:center;justify-content:center}
+      .sg-feedback-content{padding:12px}
+      .sg-decision{margin-bottom:8px;color:#333}
+      .sg-comment{color:#555}
+      .sg-comment p{margin:4px 0 0 0}
+      .sg-feedback-actions{padding:0 12px 12px;display:flex;justify-content:flex-end}
+      .sg-nope-btn{background:#dc3545;color:white;border:none;padding:6px 16px;border-radius:4px;font-weight:600;cursor:pointer;transition:background .2s}
+      .sg-nope-btn:hover{background:#c82333}
+      .sg-feedback-form{padding:12px;border-top:1px solid #e0e0e0;background:#f8f9fa}
+      .sg-feedback-input{width:100%;padding:8px;border:1px solid #ced4da;border-radius:4px;font-family:inherit;font-size:14px;resize:vertical;margin-bottom:8px}
+      .sg-feedback-input:focus{outline:none;border-color:#0066cc;box-shadow:0 0 0 2px rgba(0,102,204,.1)}
+      .sg-send-btn{background:#0066cc;color:white;border:none;padding:6px 16px;border-radius:4px;font-weight:600;cursor:pointer;transition:background .2s;float:right}
+      .sg-send-btn:hover:not(:disabled){background:#0052a3}
+      .sg-send-btn:disabled{background:#6c757d;cursor:not-allowed;opacity:.6}
+      .sg-feedback-sent{text-align:center;color:#28a745;font-weight:600;padding:20px}
+    `;
+        document.head.appendChild(style);
+    }
+}
 // Utility functions (using different names to avoid conflicts)
 function getGradingDoc() {
     const iframe = document.querySelector('iframe[src*="grade"]');
@@ -12,8 +174,14 @@ function waitDelay(ms) {
 }
 // Main grading service class
 class ChromeGradingService {
-    constructor(backendUrl = 'http://localhost:8000') {
-        this.backendUrl = backendUrl;
+    constructor() {
+        this.backendUrl = 'http://localhost:8000';
+        this.api = window.GradescopeAPI;
+        this.feedbackUI = new SimpleFeedbackUI();
+        // Set up feedback handler
+        this.feedbackUI.onFeedback(async (feedback) => {
+            await this.submitFeedback(feedback);
+        });
     }
     /**
      * Extract assignment context from the current page
@@ -293,8 +461,10 @@ class ChromeGradingService {
             optionsFound: container ? container.querySelectorAll('.rubricItem').length : 0
         });
         const radioOptions = container ? Array.from(container.querySelectorAll('.rubricItem')) : [];
-        // Extract each option
-        radioOptions.forEach((optionElement) => {
+        // QWERTY order for option letters
+        const QWERTY_LETTERS = "QWERTYUIOPASDFGHJKLZXCVBNM";
+        // Extract each option and assign QWERTY letters
+        radioOptions.forEach((optionElement, index) => {
             const descEl = optionElement.querySelector('.rubricField-description');
             let optionDesc = '';
             if (descEl) {
@@ -303,10 +473,9 @@ class ChromeGradingService {
                 // Clean up the description
                 optionDesc = optionDesc.replace(/^Grading comment:\s*/, '').trim();
             }
-            const ptsEl = optionElement.querySelector('.rubricField-points');
-            const ptsText = ptsEl?.textContent?.trim() || '0 pts';
-            if (optionDesc) {
-                options[optionDesc] = ptsText;
+            if (optionDesc && index < QWERTY_LETTERS.length) {
+                const optionLetter = QWERTY_LETTERS[index];
+                options[optionLetter] = optionDesc;
             }
         });
         // Collapse the accordion back
@@ -388,10 +557,14 @@ class ChromeGradingService {
                 backendItems.push(backendItem);
             }
         }
-        // Filter out zero-point checkbox items (they don't contribute to grade and are often just for human graders)
+        // Filter out zero-point checkbox items and bonus point questions (they don't contribute to grade and are often just for human graders)
         const filteredItems = backendItems.filter(item => {
             if (item.type === 'CHECKBOX' && item.points === 0) {
                 console.log(`🚫 Filtering out zero-point checkbox: ${item.id} - "${item.description}"`);
+                return false;
+            }
+            if (item.description && item.description.toLowerCase().includes('(bonus point)')) {
+                console.log(`🚫 Filtering out bonus point question: ${item.id} - "${item.description}"`);
                 return false;
             }
             return true;
@@ -418,6 +591,8 @@ class ChromeGradingService {
      */
     async gradeSubmission(onProgress) {
         console.log('🚀 Starting grading process...');
+        // Clear any existing feedback boxes
+        this.feedbackUI.clearAllSuggestions();
         // Extract assignment context
         const context = this.extractAssignmentContext();
         if (!context) {
@@ -547,6 +722,8 @@ class ChromeGradingService {
                                     confidence: `${(event.decision.confidence * 100).toFixed(1)}%`,
                                     verdict: event.decision.verdict
                                 });
+                                // Display the suggestion in the UI
+                                await this.displayGradingSuggestion(event.decision);
                             }
                             else if (event.type === 'error') {
                                 console.error('❌ Backend error:', event.error);
@@ -565,7 +742,116 @@ class ChromeGradingService {
             throw error;
         }
     }
+    /**
+     * Display grading suggestion in the UI
+     */
+    async displayGradingSuggestion(decision) {
+        try {
+            // Get the current rubric structure
+            const rubricResult = await this.extractRubricFromDOM();
+            if (!rubricResult || rubricResult.type !== 'structured') {
+                console.error('No structured rubric found for displaying suggestion');
+                return;
+            }
+            const targetItem = rubricResult.items.find((item) => item.id === decision.rubric_item_id);
+            if (!targetItem || !targetItem.element) {
+                console.error(`Rubric item ${decision.rubric_item_id} not found for displaying suggestion`);
+                return;
+            }
+            // Determine the decision format
+            let formattedDecision;
+            if (decision.type === 'CHECKBOX') {
+                formattedDecision = decision.verdict.decision || 'uncheck';
+            }
+            else if (decision.type === 'RADIO' && decision.verdict.selected_option) {
+                formattedDecision = decision.verdict.selected_option;
+            }
+            else {
+                formattedDecision = 'Unknown';
+            }
+            // Display the suggestion
+            this.feedbackUI.displaySuggestion({
+                rubricItemId: decision.rubric_item_id,
+                comment: decision.verdict.comment,
+                decision: formattedDecision,
+                confidence: decision.confidence,
+                element: targetItem.element
+            });
+            // Auto-apply the decision if enabled
+            const settings = await this.getSettings();
+            if (settings.autoApplyHighConfidence &&
+                decision.confidence >= (settings.confidenceThreshold || 0.8)) {
+                await this.applyGradingDecision(decision);
+                console.log(`✅ Auto-applied decision for ${decision.rubric_item_id}`);
+            }
+        }
+        catch (error) {
+            console.error('Error displaying grading suggestion:', error);
+        }
+    }
+    /**
+     * Apply a grading decision to the Gradescope UI
+     */
+    async applyGradingDecision(decision) {
+        try {
+            const api = window.GradescopeAPI;
+            if (!api) {
+                throw new Error('GradescopeAPI not available');
+            }
+            if (decision.type === 'CHECKBOX') {
+                const shouldCheck = decision.verdict.decision === 'check';
+                if (shouldCheck) {
+                    await api.checkRubricItem(decision.rubric_item_id);
+                }
+                else {
+                    await api.uncheckRubricItem(decision.rubric_item_id);
+                }
+            }
+            else if (decision.type === 'RADIO' && decision.verdict.selected_option) {
+                await api.selectRubricOption(decision.rubric_item_id, decision.verdict.selected_option);
+            }
+            console.log(`✅ Applied grading decision for ${decision.rubric_item_id}`);
+        }
+        catch (error) {
+            console.error('Error applying grading decision:', error);
+            throw error;
+        }
+    }
+    /**
+     * Submit feedback to the backend
+     */
+    async submitFeedback(feedback) {
+        try {
+            const response = await fetch(`${this.backendUrl}/api/v1/feedback`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(feedback)
+            });
+            if (!response.ok) {
+                throw new Error(`Failed to submit feedback: ${response.statusText}`);
+            }
+            console.log('✅ Feedback submitted successfully');
+        }
+        catch (error) {
+            console.error('❌ Error submitting feedback:', error);
+            // TODO: Show error to user
+        }
+    }
+    /**
+     * Get extension settings
+     */
+    async getSettings() {
+        return new Promise((resolve) => {
+            chrome.storage.sync.get(['autoApplyHighConfidence', 'confidenceThreshold'], (settings) => {
+                resolve(settings);
+            });
+        });
+    }
 }
 // Make the service available globally
+console.log('supergrader: Making ChromeGradingService available globally');
 window.ChromeGradingService = ChromeGradingService;
+console.log('supergrader: ChromeGradingService is now available at window.ChromeGradingService');
 //# sourceMappingURL=grading-service.js.map

@@ -76,6 +76,10 @@ declare class UIController {
      */
     private startEnhancedGrading;
     /**
+     * Wait for ChromeGradingService to be available with retry mechanism
+     */
+    private waitForGradingService;
+    /**
      * Complete the grading process and reset UI
      */
     private completeGrading;

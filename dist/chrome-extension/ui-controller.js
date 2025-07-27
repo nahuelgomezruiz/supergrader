@@ -255,59 +255,42 @@ class UIController {
         button.disabled = true;
         button.textContent = 'Initializing...';
         progress.style.display = 'block';
-        this.hideError();
+        if (progressText)
+            progressText.textContent = 'Initializing grading service...';
         try {
-            // Get backend URL from storage or use default
-            const settings = await chrome.storage.sync.get(['backendUrl']);
-            const backendUrl = settings.backendUrl || 'http://localhost:8000';
-            console.log('UIController: Using backend URL:', backendUrl);
-            // Use the standalone grading service
-            const ChromeGradingService = window.ChromeGradingService;
+            // Wait for ChromeGradingService to be available with retry mechanism
+            const ChromeGradingService = await this.waitForGradingService();
             if (!ChromeGradingService) {
-                throw new Error('ChromeGradingService not loaded');
+                throw new Error('ChromeGradingService failed to load after retries');
             }
-            // Create grading service
-            const gradingService = new ChromeGradingService(backendUrl);
-            // Update progress text
-            progressFill.style.width = '5%';
-            progressText.textContent = 'Extracting rubric structure...';
-            // Start grading with progress callback
+            const gradingService = new ChromeGradingService();
+            // Reset UI
+            if (progressText)
+                progressText.textContent = 'Starting grading...';
+            if (progressFill)
+                progressFill.style.width = '0%';
+            // Start grading with progress tracking
             await gradingService.gradeSubmission((event) => {
-                console.log('UIController: Grading event', event);
-                if (event.type === 'partial_result' && event.progress !== undefined) {
-                    // Update progress bar
-                    const percent = Math.round(event.progress * 100);
-                    progressFill.style.width = `${percent}%`;
-                    progressText.textContent = `Grading rubric items... ${percent}%`;
-                    // Log the decision
-                    if (event.decision) {
-                        console.log(`✅ Graded ${event.rubric_item_id}:`, {
-                            confidence: `${(event.decision.confidence * 100).toFixed(1)}%`,
-                            verdict: event.decision.verdict
-                        });
-                        // Apply decision if auto-apply is enabled and confidence is high
-                        chrome.storage.sync.get(['autoApplyHighConfidence', 'confidenceThreshold'], async (settings) => {
-                            if (settings.autoApplyHighConfidence &&
-                                event.decision &&
-                                event.decision.confidence >= (settings.confidenceThreshold || 0.8)) {
-                                try {
-                                    await gradingService.applyGradingDecision(event.decision);
-                                    console.log(`✅ Auto-applied decision for ${event.rubric_item_id}`);
-                                }
-                                catch (error) {
-                                    console.error(`❌ Failed to auto-apply decision for ${event.rubric_item_id}:`, error);
-                                }
-                            }
-                        });
-                    }
+                console.log('UIController: Grading event:', event);
+                if (event.type === 'partial_result') {
+                    // Update progress
+                    const progress = event.progress || 0;
+                    if (progressFill)
+                        progressFill.style.width = `${progress}%`;
+                    if (progressText)
+                        progressText.textContent = `Grading item ${event.rubric_item_id}...`;
                 }
                 else if (event.type === 'job_complete') {
-                    // Complete
-                    progressFill.style.width = '100%';
-                    progressText.textContent = 'Grading completed!';
+                    // Grading completed
+                    if (progressFill)
+                        progressFill.style.width = '100%';
+                    if (progressText)
+                        progressText.textContent = 'Grading completed!';
                     setTimeout(() => {
-                        this.completeGrading(button, progress);
-                    }, 1500);
+                        button.disabled = false;
+                        button.textContent = 'Grade Assignment';
+                        progress.style.display = 'none';
+                    }, 2000);
                 }
                 else if (event.type === 'error') {
                     throw new Error(event.error || 'Unknown grading error');
@@ -316,12 +299,36 @@ class UIController {
         }
         catch (error) {
             console.error('UIController: Grading error', error);
-            this.showError(`Grading failed: ${error.message}`);
-            // Reset UI
+            // Reset UI on error
             button.disabled = false;
-            button.textContent = 'Start AI Grading';
+            button.textContent = 'Grade Assignment';
             progress.style.display = 'none';
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            this.showError(`Grading failed: ${errorMessage}`);
         }
+    }
+    /**
+     * Wait for ChromeGradingService to be available with retry mechanism
+     */
+    async waitForGradingService(maxRetries = 10, delayMs = 500) {
+        console.log('UIController: Starting to wait for ChromeGradingService...');
+        console.log('UIController: Current window object keys:', Object.keys(window).filter(k => k.includes('Chrome') || k.includes('Grading')));
+        for (let i = 0; i < maxRetries; i++) {
+            const ChromeGradingService = window.ChromeGradingService;
+            console.log(`UIController: Retry ${i + 1}/${maxRetries} - ChromeGradingService:`, typeof ChromeGradingService);
+            if (ChromeGradingService) {
+                console.log(`UIController: ChromeGradingService found after ${i} retries`);
+                console.log('UIController: ChromeGradingService type:', typeof ChromeGradingService);
+                console.log('UIController: ChromeGradingService constructor:', ChromeGradingService.constructor?.name);
+                return ChromeGradingService;
+            }
+            console.log(`UIController: ChromeGradingService not found, retry ${i + 1}/${maxRetries}`);
+            console.log('UIController: Available window properties:', Object.keys(window).filter(k => k.toLowerCase().includes('grading')));
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+        console.error('UIController: ChromeGradingService failed to load after all retries');
+        console.error('UIController: Final window object keys:', Object.keys(window).filter(k => k.includes('Chrome') || k.includes('Grading')));
+        return null;
     }
     /**
      * Complete the grading process and reset UI

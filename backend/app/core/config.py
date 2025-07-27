@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     debug: bool = False
     api_prefix: str = "/api/v1"
     
+    # Storage Settings
+    data_dir: str = "./data"  # Directory for storing application data
+    
     # Redis Settings
     redis_url: str = "redis://localhost:6379/0"
     cache_ttl: int = 3600  # 1 hour in seconds

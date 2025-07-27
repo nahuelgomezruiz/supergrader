@@ -1,3 +1,32 @@
+interface FeedbackUIConfig {
+    rubricItemId: string;
+    comment: string;
+    decision: 'check' | 'uncheck' | string;
+    confidence: number;
+    element: HTMLElement;
+}
+interface FeedbackData {
+    rubricItemId: string;
+    rubricQuestion: string;
+    studentAssignment: string;
+    originalDecision: string;
+    userFeedback: string;
+}
+declare class SimpleFeedbackUI {
+    private feedbackBoxes;
+    private onFeedbackSubmit?;
+    constructor();
+    onFeedback(cb: (data: FeedbackData) => void): void;
+    clearAllSuggestions(): void;
+    displaySuggestion(cfg: FeedbackUIConfig): void;
+    private removeSuggestion;
+    private createBox;
+    private extractRubricQuestion;
+    private extractStudentAnswer;
+    private formatDecision;
+    private escape;
+    private injectStyles;
+}
 interface BackendRubricItem {
     id: string;
     description: string;
@@ -38,7 +67,9 @@ declare function getGradingDoc(): Document;
 declare function waitDelay(ms: number): Promise<void>;
 declare class ChromeGradingService {
     private backendUrl;
-    constructor(backendUrl?: string);
+    private api;
+    private feedbackUI;
+    constructor();
     /**
      * Extract assignment context from the current page
      */
@@ -85,5 +116,21 @@ declare class ChromeGradingService {
      * Grade submission using the backend API
      */
     gradeSubmission(onProgress?: (event: GradingEvent) => void): Promise<void>;
+    /**
+     * Display grading suggestion in the UI
+     */
+    private displayGradingSuggestion;
+    /**
+     * Apply a grading decision to the Gradescope UI
+     */
+    private applyGradingDecision;
+    /**
+     * Submit feedback to the backend
+     */
+    private submitFeedback;
+    /**
+     * Get extension settings
+     */
+    private getSettings;
 }
 //# sourceMappingURL=grading-service.d.ts.map

@@ -1,7 +1,7 @@
 """Modular LLM service with provider support."""
 
 import json
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, Union, List, Any
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -105,7 +105,8 @@ class LLMService:
         rubric_options: Optional[Dict[str, str]],
         source_files: Dict[str, str],
         language: str = "cpp",
-        section_context: Optional[str] = None
+        section_context: Optional[str] = None,
+        caveats: Optional[List[Dict[str, Any]]] = None
     ) -> Union[CheckboxVerdict, RadioVerdict]:
         """Evaluate a single rubric item using the LLM."""
         
@@ -115,11 +116,11 @@ class LLMService:
             # Prepare the prompt based on rubric type
             if rubric_type == RubricType.CHECKBOX:
                 prompt = provider.build_checkbox_prompt(
-                    rubric_description, rubric_points, source_files, language, section_context
+                    rubric_description, rubric_points, source_files, language, section_context, caveats
                 )
             else:
                 prompt = provider.build_radio_prompt(
-                    rubric_description, rubric_options, source_files, language, section_context
+                    rubric_description, rubric_options, source_files, language, section_context, caveats
                 )
             
             # Call the LLM
@@ -170,6 +171,29 @@ class LLMService:
         except Exception as e:
             print(f"❌ Response parsing failed: {type(e).__name__}: {e}")
             raise
+    
+    async def generate_caveat(self, prompt: str) -> str:
+        """Generate a caveat from user feedback using the LLM."""
+        provider = await self._ensure_provider()
+        
+        try:
+            # Call the LLM with the caveat generation prompt
+            response = await provider.call_llm(prompt)
+            
+            # Clean up the response - remove any markdown or extra formatting
+            caveat_text = response.strip()
+            
+            # Remove markdown code blocks if present
+            if caveat_text.startswith("```") and caveat_text.endswith("```"):
+                lines = caveat_text.split('\n')
+                caveat_text = '\n'.join(lines[1:-1]).strip()
+            
+            print(f"✅ Generated caveat: {caveat_text[:50]}...")
+            return caveat_text
+            
+        except Exception as e:
+            print(f"❌ Failed to generate caveat: {e}")
+            raise ValueError(f"Failed to generate caveat: {e}")
     
     @property
     def provider_name(self) -> str:

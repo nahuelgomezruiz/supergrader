@@ -1,7 +1,7 @@
 """Base LLM provider interface."""
 
 from abc import ABC, abstractmethod
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, List, Any
 from app.models import RubricType, CheckboxVerdict, RadioVerdict
 
 
@@ -40,7 +40,8 @@ class BaseLLMProvider(ABC):
         points: float,
         source_files: Dict[str, str],
         language: str = "cpp",
-        section_context: Optional[str] = None
+        section_context: Optional[str] = None,
+        caveats: Optional[List[Dict[str, Any]]] = None
     ) -> str:
         """Build prompt for checkbox rubric items."""
         
@@ -59,9 +60,22 @@ Entire rubric for this section (for context only):
 
 """
 
+        # Build caveats section if provided
+        caveats_section = ""
+        if caveats:
+            caveats_text = "\n".join([
+                f"- {caveat['caveat_text']}"
+                for caveat in caveats
+            ])
+            caveats_section = f"""
+IMPORTANT CAVEATS FROM PREVIOUS GRADING:
+{caveats_text}
+
+"""
+
         return f"""You are an expert code grader. Think step‑by‑step **silently**; show only the final JSON.
 
-{context_section}YOUR SPECIFIC TASK - Evaluate this single checkbox:
+{context_section}{caveats_section}YOUR SPECIFIC TASK - Evaluate this single checkbox:
 Rubric item (CHECKBOX, {points} pts):
 «{description}»
 
@@ -106,7 +120,8 @@ Remember: think internally first, then output **only** the JSON block."""
         options: Dict[str, str],
         source_files: Dict[str, str],
         language: str = "cpp",
-        section_context: Optional[str] = None
+        section_context: Optional[str] = None,
+        caveats: Optional[List[Dict[str, Any]]] = None
     ) -> str:
         """Build prompt for radio rubric items."""
         
@@ -131,9 +146,22 @@ Entire rubric for this section (for context only):
 
 """
 
+        # Build caveats section if provided
+        caveats_section = ""
+        if caveats:
+            caveats_text = "\n".join([
+                f"- {caveat['caveat_text']}"
+                for caveat in caveats
+            ])
+            caveats_section = f"""
+IMPORTANT CAVEATS FROM PREVIOUS GRADING:
+{caveats_text}
+
+"""
+
         return f"""You are an expert code grader. Think step‑by‑step **silently**; show only the final JSON.
 
-{context_section}YOUR SPECIFIC TASK - Evaluate this single radio button:
+{context_section}{caveats_section}YOUR SPECIFIC TASK - Evaluate this single radio button:
 Rubric item (RADIO):
 «{description}»
 
