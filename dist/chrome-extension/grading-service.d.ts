@@ -111,6 +111,10 @@ declare class ChromeGradingService {
      * Convert rubric items to backend format
      */
     private convertRubricToBackendFormat;
+    /**
+     * Scroll to the top of the grading panel after scraping toggle options
+     */
+    private scrollToTopOfGradingPanel;
     private isTestFile;
     /**
      * Grade submission using the backend API

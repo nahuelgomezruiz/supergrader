@@ -173,7 +173,7 @@ class SimpleFeedbackUI {
     style.textContent = `
       .supergrader-feedback-box{background:#20545c;border:2px solid #1a464d;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.15);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;overflow:hidden;position:relative;color:white}
       .sg-feedback-content{padding:12px}
-      .sg-combined-text{color:white;line-height:1.4;margin-bottom:0;font-weight:490}
+      .sg-combined-text{color:white;line-height:1.4;margin-bottom:0;font-weight:495}
       .sg-feedback-actions{padding:0 12px 12px;display:flex;justify-content:flex-end}
       .sg-nope-btn{background:#dc3545;color:white;border:none;padding:8px 16px;border-radius:4px;font-weight:600;cursor:pointer;transition:background .2s;margin-right:12px}
       .sg-nope-btn:hover{background:#c82333}
@@ -710,7 +710,55 @@ class ChromeGradingService {
       console.log(`✅ Filtered out ${filteredCount} zero-point checkbox items. Sending ${filteredItems.length} items to backend.`);
     }
 
+    // Scroll back to top of grading panel after processing all toggles
+    this.scrollToTopOfGradingPanel();
+
     return filteredItems;
+  }
+
+  /**
+   * Scroll to the top of the grading panel after scraping toggle options
+   */
+  private scrollToTopOfGradingPanel(): void {
+    try {
+      const doc = getGradingDoc();
+      
+      // Find the main grading container/panel
+      const gradingPanel = doc.querySelector('.rubricEditor') || 
+                          doc.querySelector('.grading-panel') ||
+                          doc.querySelector('[class*="grading"]') ||
+                          doc.querySelector('[class*="rubric"]');
+      
+      if (gradingPanel) {
+        console.log('📜 Scrolling grading panel to top...');
+        gradingPanel.scrollTop = 0;
+        
+        // Also try scrolling the parent container if it's scrollable
+        let parent = gradingPanel.parentElement;
+        while (parent && parent !== doc.body) {
+          const style = getComputedStyle(parent);
+          if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+            parent.scrollTop = 0;
+            console.log('📜 Also scrolled parent container to top');
+            break;
+          }
+          parent = parent.parentElement;
+        }
+        
+        // Fallback: scroll the entire document/iframe to top
+        doc.documentElement.scrollTop = 0;
+        doc.body.scrollTop = 0;
+        
+        console.log('✅ Scrolled to top of grading panel');
+      } else {
+        console.warn('⚠️ Could not find grading panel to scroll');
+        // Fallback: just scroll the document to top
+        doc.documentElement.scrollTop = 0;
+        doc.body.scrollTop = 0;
+      }
+    } catch (error) {
+      console.error('❌ Error scrolling to top:', error);
+    }
   }
 
   private isTestFile(filePath: string): boolean {
